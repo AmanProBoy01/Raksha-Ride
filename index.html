@@ -5,19 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Yatra Rakshaka | Real-Time Cab Sentinel & Emergency SOS</title>
     
-    <!-- Inline SVG Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
-
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    
-    <!-- FontAwesome & Leaflet CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="assets/leaflet.css" onerror="this.onerror=null;this.href='leaflet.css';" />
-    
-    <!-- Stylesheet -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,8 +18,8 @@
     <!-- Ultra Battery Saver Warning Bar -->
     <div id="ultra-saver-bar" class="ultra-saver-bar hidden">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        <span>CRITICAL BATTERY (&le; 5%): ULTRA POWER SAVER AUTOMATICALLY ACTIVE</span>
-        <button id="disable-saver-btn" onclick="toggleUltraSaver(false)">Disable Mode</button>
+        <span>CRITICAL BATTERY (&le; 5%): ULTRA POWER SAVER ACTIVE</span>
+        <button id="disable-saver-btn" onclick="toggleUltraSaver(false)">Disable</button>
     </div>
 
     <!-- Main Navigation Header -->
@@ -35,27 +28,27 @@
             <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
             <div class="brand-text">
                 <h1>Yatra <span>Rakshaka</span></h1>
-                <p>Real-Time Passenger Sentinel & Emergency Shield</p>
+                <p>Passenger Sentinel & Emergency Shield</p>
             </div>
         </div>
 
         <div class="header-controls">
-            <!-- Battery Simulator Control -->
+            <!-- Battery Simulator -->
             <div class="battery-simulator-pill" title="Drag slider to test Auto 5% Saver">
                 <i class="fa-solid fa-battery-half" id="header-battery-icon"></i>
-                <span class="bat-label">Battery Sim:</span>
+                <span class="bat-label">Battery:</span>
                 <input type="range" id="battery-slider" min="1" max="100" value="85">
                 <span id="battery-sim-val" class="bat-val">85%</span>
             </div>
 
-            <!-- Status Pills -->
+            <!-- GPS Status -->
             <div class="status-pill location-pill" id="gps-status-pill">
                 <span class="pulse-dot"></span>
-                <span id="gps-status-text">GPS: Live Active</span>
+                <span id="gps-status-text">GPS: Live</span>
             </div>
 
-            <!-- Emergency SOS Button -->
-            <button class="sos-header-btn" onclick="openSosModal()" title="Trigger Emergency Distress Beacon">
+            <!-- SOS Button -->
+            <button class="sos-header-btn" onclick="openSosModal()">
                 <i class="fa-solid fa-bell"></i> SOS
             </button>
         </div>
@@ -67,10 +60,10 @@
         <!-- Left Column: Map & Live Tracking -->
         <section class="card map-section">
             <div class="card-header">
-                <h2><i class="fa-solid fa-map-location-dot"></i> Live GPS Radar & Police Map</h2>
+                <h2><i class="fa-solid fa-map-location-dot"></i> Live GPS Radar</h2>
                 <div class="card-actions">
-                    <button class="icon-btn" onclick="recenterMap()" title="Center Map on My Location"><i class="fa-solid fa-crosshairs"></i></button>
-                    <button class="icon-btn" onclick="toggleMapTheme()" id="map-theme-btn" title="Toggle Dark/Light Map"><i class="fa-solid fa-moon"></i></button>
+                    <button class="icon-btn" onclick="recenterMap()" title="Center Map"><i class="fa-solid fa-crosshairs"></i></button>
+                    <button class="icon-btn" onclick="toggleMapTheme()" id="map-theme-btn" title="Toggle Theme"><i class="fa-solid fa-moon"></i></button>
                 </div>
             </div>
             
@@ -80,19 +73,19 @@
                 <div class="map-live-overlay">
                     <div class="geo-badge">
                         <i class="fa-solid fa-location-arrow"></i>
-                        <span id="live-coords">Detecting GPS position...</span>
+                        <span id="live-coords">Lat: 28.6139°, Lng: 77.2090°</span>
                     </div>
                     <div class="address-badge" id="live-address-badge">
                         <i class="fa-solid fa-location-dot"></i>
-                        <span id="live-address-text">Resolving street address...</span>
+                        <span id="live-address-text">Connaught Place, New Delhi</span>
                     </div>
                     <div class="speed-badge">
                         <i class="fa-solid fa-gauge-high"></i>
-                        <span id="live-speed">Cab Speed: 36 km/h</span>
+                        <span id="live-speed">36 km/h</span>
                     </div>
                     <div class="eta-badge">
                         <i class="fa-solid fa-clock"></i>
-                        <span id="live-eta">ETA: 6 Mins (1.8 km)</span>
+                        <span id="live-eta">ETA: 6 Mins</span>
                     </div>
                 </div>
             </div>
@@ -117,7 +110,7 @@
                     <div class="driver-avatar-box">
                         <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver Avatar" id="driver-img">
                         <div class="driver-rating">
-                            <i class="fa-solid fa-star"></i> <span id="driver-rating-val">4.9</span>
+                            <i class="fa-solid fa-star"></i> 4.9
                         </div>
                     </div>
 
@@ -145,7 +138,7 @@
 
                 <!-- Driver Actions -->
                 <div class="driver-actions">
-                    <button class="action-btn call-btn" onclick="openCallModal()">
+                    <button class="action-btn call-btn" onclick="openCallModal(activeCab.name, activeCab.phone, 'Cab Driver')">
                         <i class="fa-solid fa-phone"></i> Call Driver
                     </button>
                     <button class="action-btn chat-btn" onclick="openChatDrawer()">
@@ -166,7 +159,7 @@
                         <span class="badge saver-badge" id="battery-saver-badge">
                             <i class="fa-solid fa-bolt"></i> <span id="saver-status-text">Saver: OFF</span>
                         </span>
-                        <button class="toggle-saver-btn" onclick="manualToggleSaver()" title="Quick toggle ultra battery saver">
+                        <button class="toggle-saver-btn" onclick="manualToggleSaver()">
                             <i class="fa-solid fa-power-off"></i> Toggle
                         </button>
                     </div>
@@ -180,26 +173,26 @@
                         </div>
                         <div class="stat-info">
                             <div class="stat-val-row">
-                                <span class="stat-title">Live Battery Level</span>
+                                <span class="stat-title">Live Battery</span>
                                 <span class="charging-text" id="phone-charging-status"><i class="fa-solid fa-plug"></i> Discharging</span>
                             </div>
                             <div class="stat-val-row" style="margin: 4px 0;">
                                 <span class="stat-value" id="phone-bat-percent">85%</span>
-                                <span class="battery-health-tag"><i class="fa-solid fa-heart-pulse"></i> Health: 98% Good</span>
+                                <span class="battery-health-tag"><i class="fa-solid fa-heart-pulse"></i> 98% Good</span>
                             </div>
                             <div class="battery-bar-container">
                                 <div class="battery-bar-fill" id="battery-bar-fill" style="width: 85%;"></div>
                             </div>
-                            <small class="battery-subtext" id="battery-auto-note">⚡ Auto Ultra Saving Mode activates automatically at &le; 5%</small>
+                            <small class="battery-subtext">⚡ Auto Ultra Saving activates at &le; 5%</small>
                         </div>
                     </div>
 
-                    <!-- OS & Phone Model -->
+                    <!-- OS & Platform -->
                     <div class="stat-box">
                         <div class="stat-icon-wrap"><i class="fa-solid fa-microchip"></i></div>
                         <div class="stat-info">
-                            <span class="stat-title">Device OS & Arch</span>
-                            <span class="stat-value-sm" id="phone-os-info">Detecting OS...</span>
+                            <span class="stat-title">Platform</span>
+                            <span class="stat-value-sm" id="phone-os-info">Detecting...</span>
                         </div>
                     </div>
 
@@ -207,65 +200,62 @@
                     <div class="stat-box">
                         <div class="stat-icon-wrap"><i class="fa-solid fa-expand"></i></div>
                         <div class="stat-info">
-                            <span class="stat-title">Screen Resolution</span>
-                            <span class="stat-value-sm" id="phone-res-info">Detecting Display...</span>
+                            <span class="stat-title">Resolution</span>
+                            <span class="stat-value-sm" id="phone-res-info">Detecting...</span>
                         </div>
                     </div>
 
-                    <!-- CPU & Memory -->
+                    <!-- Hardware -->
                     <div class="stat-box">
                         <div class="stat-icon-wrap"><i class="fa-solid fa-memory"></i></div>
                         <div class="stat-info">
-                            <span class="stat-title">Hardware Specs</span>
-                            <span class="stat-value-sm" id="phone-hw-info">8 CPU Cores | 8GB RAM</span>
+                            <span class="stat-title">Hardware</span>
+                            <span class="stat-value-sm" id="phone-hw-info">8 Cores | 8GB RAM</span>
                         </div>
                     </div>
 
-                    <!-- Network Status -->
+                    <!-- Network -->
                     <div class="stat-box">
                         <div class="stat-icon-wrap"><i class="fa-solid fa-wifi"></i></div>
                         <div class="stat-info">
-                            <span class="stat-title">Network & Latency</span>
-                            <span class="stat-value-sm" id="phone-network-info">Online (4G LTE • 38ms RTT)</span>
+                            <span class="stat-title">Network</span>
+                            <span class="stat-value-sm" id="phone-network-info">Online (4G LTE)</span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Near Police Station Contact Section (Real Overpass API Scanner) -->
+            <!-- Police Station Contacts -->
             <section class="card police-card">
                 <div class="card-header">
                     <div>
                         <h2><i class="fa-solid fa-building-shield"></i> Nearby Police Stations</h2>
-                        <span id="police-scan-status" class="scan-status-text"><i class="fa-solid fa-satellite-dish"></i> Live GPS scan active</span>
+                        <span id="police-scan-status" class="scan-status-text">🟢 24x7 Emergency Hubs Linked</span>
                     </div>
-                    <button class="sm-text-btn" onclick="refreshPoliceStations()"><i class="fa-solid fa-rotate-right"></i> Scan Again</button>
+                    <button class="sm-text-btn" onclick="refreshPoliceStations()"><i class="fa-solid fa-rotate-right"></i> Scan</button>
                 </div>
 
                 <div class="police-list" id="police-station-list">
-                    <div class="loading-stations-notice">
-                        <i class="fa-solid fa-circle-notch fa-spin"></i>
-                        <span>Scanning police stations around your live location...</span>
-                    </div>
+                    <!-- Populated immediately via JS -->
                 </div>
             </section>
 
         </div>
     </main>
 
-    <!-- CUSTOM CAB DETAILS MODAL (ENTER / EDIT RIDE) -->
+    <!-- CUSTOM CAB MODAL -->
     <div id="cab-modal" class="modal-overlay hidden">
-        <div class="cab-edit-card">
+        <div class="modal-card">
             <div class="modal-header-row">
                 <h3><i class="fa-solid fa-taxi"></i> Safe Ride Details</h3>
                 <button class="modal-close-btn" onclick="closeCabModal()"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <p class="modal-subtext">Enter your active cab or auto-rickshaw details for live safety monitoring.</p>
+            <p class="modal-subtext">Enter active cab or auto details for real-time safety monitoring.</p>
 
             <form id="cab-form" onsubmit="handleCabSubmit(event)">
                 <div class="form-group">
                     <label>Vehicle Plate Number *</label>
-                    <input type="text" id="input-plate" placeholder="e.g. DL 01 AB 7890 / MH 02 CZ 4521" required>
+                    <input type="text" id="input-plate" placeholder="e.g. DL 01 AB 7890" required>
                 </div>
 
                 <div class="form-row">
@@ -274,7 +264,7 @@
                         <input type="text" id="input-driver-name" placeholder="e.g. Rajesh Kumar" required>
                     </div>
                     <div class="form-group">
-                        <label>Driver Phone Number</label>
+                        <label>Driver Phone</label>
                         <input type="tel" id="input-driver-phone" placeholder="e.g. +91 98765 43210">
                     </div>
                 </div>
@@ -283,10 +273,10 @@
                     <div class="form-group">
                         <label>Vehicle Type</label>
                         <select id="input-cab-type">
-                            <option value="White Maruti Suzuki Dzire (Sedan)">Sedan (Dzire / Etios)</option>
+                            <option value="White Maruti Suzuki Dzire">White Maruti Suzuki Dzire</option>
                             <option value="Auto-Rickshaw (Yellow-Green)">Auto-Rickshaw</option>
-                            <option value="Hatchback (WagonR / Swift)">Hatchback (WagonR / Swift)</option>
-                            <option value="Prime SUV (Innova / Ertiga)">Prime SUV (Innova / Ertiga)</option>
+                            <option value="Hatchback (Swift / WagonR)">Hatchback (Swift / WagonR)</option>
+                            <option value="Prime SUV (Innova / Ertiga)">Prime SUV (Innova)</option>
                             <option value="Bike Taxi">Bike Taxi</option>
                         </select>
                     </div>
@@ -302,24 +292,22 @@
 
                 <div class="modal-actions-row">
                     <button type="button" class="cancel-btn" onclick="closeCabModal()">Cancel</button>
-                    <button type="submit" class="save-cab-btn"><i class="fa-solid fa-shield-check"></i> Save & Monitor</button>
+                    <button type="submit" class="save-cab-btn"><i class="fa-solid fa-check"></i> Save & Monitor</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- SHARE SAFETY BEACON MODAL (WHATSAPP & SMS) -->
+    <!-- SHARE SAFETY BEACON MODAL -->
     <div id="share-modal" class="modal-overlay hidden">
-        <div class="share-beacon-card">
+        <div class="modal-card">
             <div class="modal-header-row">
                 <h3><i class="fa-solid fa-share-nodes"></i> Broadcast Safety Beacon</h3>
                 <button class="modal-close-btn" onclick="closeShareModal()"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <p class="modal-subtext">Instantly transmit your live location, driver details & route link to trusted family or police.</p>
+            <p class="modal-subtext">Transmit live location, driver details & map link to trusted family or police.</p>
 
-            <div class="beacon-preview-box" id="beacon-preview-box">
-                <!-- Populated via JS -->
-            </div>
+            <div class="beacon-preview-box" id="beacon-preview-box"></div>
 
             <div class="share-channel-buttons">
                 <button class="share-channel-btn whatsapp-btn" onclick="shareOnWhatsApp()">
@@ -329,7 +317,7 @@
                     <i class="fa-solid fa-message"></i> Send via SMS
                 </button>
                 <button class="share-channel-btn copy-btn" onclick="copyShareBeacon()">
-                    <i class="fa-solid fa-copy"></i> Copy Beacon Text
+                    <i class="fa-solid fa-copy"></i> Copy Text
                 </button>
             </div>
         </div>
@@ -339,10 +327,10 @@
     <div id="chat-drawer" class="chat-drawer">
         <div class="chat-header">
             <div class="chat-driver-info">
-                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver" class="chat-avatar" id="chat-driver-avatar">
+                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver" class="chat-avatar">
                 <div>
                     <h4 id="chat-driver-name">Rajesh Kumar</h4>
-                    <span class="online-status" id="chat-driver-status">🟢 Online • Dzire DL 01 AB 7890</span>
+                    <span class="online-status" id="chat-driver-status">🟢 Online</span>
                 </div>
             </div>
             <button class="close-chat-btn" onclick="closeChatDrawer()"><i class="fa-solid fa-xmark"></i></button>
@@ -350,21 +338,20 @@
 
         <div class="chat-messages-container" id="chat-messages">
             <div class="message incoming">
-                <div class="message-bubble">Namaste sir! I am en-route to your location, reaching in about 6 minutes.</div>
+                <div class="message-bubble">Namaste! Reaching your pickup location in about 6 minutes.</div>
                 <span class="message-time">Just now</span>
             </div>
         </div>
 
         <div class="typing-indicator hidden" id="typing-indicator">
-            <span></span><span></span><span></span> Driver is typing...
+            <span></span> Driver is typing...
         </div>
 
-        <!-- Quick SOS Templates -->
         <div class="quick-templates">
             <button class="template-btn" onclick="sendQuickMessage('Where are you right now?')">📍 Where are you?</button>
             <button class="template-btn" onclick="sendQuickMessage('I am waiting at the main gate.')">🚪 At the gate</button>
             <button class="template-btn danger-template" onclick="sendQuickMessage('⚠️ Please stop the cab immediately!')">⚠️ Stop Cab</button>
-            <button class="template-btn danger-template" onclick="sendQuickMessage('🆘 I am feeling unsafe, please confirm route!')">🆘 Unsafe Alert</button>
+            <button class="template-btn danger-template" onclick="sendQuickMessage('🆘 I am feeling unsafe!')">🆘 Unsafe</button>
         </div>
 
         <div class="chat-input-bar">
@@ -373,50 +360,31 @@
         </div>
     </div>
 
-    <!-- VOICE CALL SIMULATOR MODAL -->
+    <!-- UNIFIED CALL SIMULATOR MODAL (Handles Cab Driver & Police Contacts) -->
     <div id="call-modal" class="modal-overlay hidden">
-        <div class="call-card">
+        <div class="modal-card call-card">
             <div class="call-avatar-wrap">
-                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver Avatar" id="call-driver-avatar">
+                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Contact Avatar" id="call-avatar-img">
                 <div class="call-pulse-ring"></div>
             </div>
-            <h3 id="call-status-title">Calling Rajesh Kumar...</h3>
-            <p class="call-number" id="call-driver-number">+91 98765 43210 (Cab Driver)</p>
+            <h3 id="call-status-title">Calling...</h3>
+            <p class="call-number" id="call-dialog-number">+91 98765 43210</p>
             <p class="call-timer" id="call-timer-text">Ringing...</p>
 
             <div class="call-controls">
-                <button class="call-control-btn mute-btn" id="call-mute-btn" onclick="toggleCallMute()" title="Mute/Unmute"><i class="fa-solid fa-microphone-slash"></i></button>
-                <button class="call-control-btn end-call-btn" onclick="closeCallModal()" title="End Call"><i class="fa-solid fa-phone-slash"></i></button>
-                <button class="call-control-btn speaker-btn" id="call-speaker-btn" onclick="toggleCallSpeaker()" title="Speaker"><i class="fa-solid fa-volume-high"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- POLICE EMERGENCY DISPATCH CALL MODAL -->
-    <div id="police-call-modal" class="modal-overlay hidden">
-        <div class="call-card police-call-card">
-            <div class="police-siren-badge"><i class="fa-solid fa-shield-halved"></i></div>
-            <h3 id="police-modal-title">Emergency Police Dispatch</h3>
-            <p class="call-number" id="police-modal-number">Dialing 112...</p>
-            <p class="call-timer" id="police-modal-timer">Connecting to nearest control room...</p>
-
-            <div class="dispatch-info-box">
-                <p><i class="fa-solid fa-location-crosshairs"></i> Live GPS Coordinates Transmitted</p>
-                <p><i class="fa-solid fa-taxi"></i> Vehicle Flagged: <span id="police-flagged-plate">DL 01 AB 7890</span></p>
-            </div>
-
-            <div class="call-controls">
-                <button class="call-control-btn end-call-btn" onclick="closePoliceCallModal()" title="Disconnect"><i class="fa-solid fa-phone-slash"></i></button>
+                <button class="call-control-btn mute-btn" id="call-mute-btn" onclick="toggleCallMute()"><i class="fa-solid fa-microphone-slash"></i></button>
+                <button class="call-control-btn end-call-btn" onclick="closeCallModal()"><i class="fa-solid fa-phone-slash"></i></button>
+                <button class="call-control-btn speaker-btn" id="call-speaker-btn" onclick="toggleCallSpeaker()"><i class="fa-solid fa-volume-high"></i></button>
             </div>
         </div>
     </div>
 
     <!-- EMERGENCY SOS TRIGGER MODAL -->
     <div id="sos-modal" class="modal-overlay hidden">
-        <div class="sos-card">
+        <div class="modal-card sos-card">
             <div class="sos-siren-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
             <h2>EMERGENCY SOS ALERT</h2>
-            <p>Distress beacon will broadcast your live location to Nearest Police Stations & Emergency Contacts in:</p>
+            <p>Distress beacon will broadcast your live location to Nearest Police Stations in:</p>
             
             <div class="sos-countdown-circle">
                 <span id="sos-countdown-num">5</span>
@@ -432,7 +400,7 @@
     <!-- TOAST NOTIFICATION CONTAINER -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Scripts: Local Leaflet + Core App -->
+    <!-- Local Leaflet + Core App -->
     <script src="assets/leaflet.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='leaflet.js';document.head.appendChild(s);"></script>
     <script src="app.js"></script>
 </body>

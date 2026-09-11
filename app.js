@@ -1,8 +1,9 @@
 /* ==========================================================================
    Yatra Rakshaka - Core Application Controller
+   Cleaned & Streamlined via Ponytail Audit
    ========================================================================== */
 
-// Global State
+// --- Global Application State ---
 let map = null;
 let userMarker = null;
 let driverMarker = null;
@@ -10,14 +11,14 @@ let routePolyline = null;
 let tileLayer = null;
 let isDarkMap = true;
 
-// Default Coordinates (Base fallback: New Delhi center)
+// Default Coordinates (New Delhi center)
 let userCoords = { lat: 28.6139, lng: 77.2090 };
 let driverCoords = { lat: 28.6210, lng: 77.2180 };
-let userAddress = "New Delhi, India";
+let userAddress = "Connaught Place, New Delhi";
 let cabSpeed = 36;
 let distanceKm = 1.8;
 
-// Active Cab Details (Dynamic & User-Editable)
+// Active Cab Details (Editable via Cab Modal)
 let activeCab = {
     name: "Rajesh Kumar",
     phone: "+91 98765 43210",
@@ -30,11 +31,11 @@ let activeCab = {
     status: "enroute" // 'enroute', 'waiting', 'completed'
 };
 
-// Real Nearby Police Stations (Overpass API Storage)
+// Police Stations & Map Markers
 let nearbyPoliceStations = [];
 let policeMapMarkers = [];
 
-// Call State
+// Unified Call State
 let isCallActive = false;
 let callInterval = null;
 let callSeconds = 0;
@@ -42,99 +43,75 @@ let isMuted = false;
 let isSpeaker = false;
 let ringAudioTimer = null;
 
-// Police Emergency Call State
-let isPoliceCallActive = false;
-let policeCallInterval = null;
-let policeCallSeconds = 0;
-
-// SOS State
+// Emergency SOS State
 let sosCountdown = 5;
 let sosInterval = null;
 
-// Ultra Saver State
+// Ultra Power Saver State
 let isUltraSaverActive = false;
 let userManualOverride = false;
 
-// Unread Chat Counter
+// Chat State
 let unreadMessages = 0;
 
 /* ==========================================================================
-   Audio Synthesizer Engine (HTML5 Web Audio API - Zero External Files)
+   1. Audio Synthesizer Engine (Lightweight HTML5 Web Audio API)
    ========================================================================== */
 let audioCtx = null;
 
-function getAudioContext() {
-    if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-            audioCtx = new AudioContext();
+function beep(freq = 440, duration = 0.15, type = 'sine', gainVal = 0.15) {
+    try {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) audioCtx = new AudioContext();
         }
-    }
-    if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-    return audioCtx;
-}
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
 
-function playTone(freq, type = 'sine', duration = 0.15, gainVal = 0.15) {
-    try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
         osc.type = type;
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(gainVal, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(audioCtx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + duration);
-    } catch (e) {
-        console.warn("Audio playback not permitted yet", e);
+        osc.stop(audioCtx.currentTime + duration);
+    } catch (_) {}
+}
+
+const playChime = (inbound = false) => {
+    beep(inbound ? 520 : 680, 0.1, 'sine', 0.12);
+    setTimeout(() => beep(inbound ? 680 : 840, 0.15, 'sine', 0.12), 100);
+};
+
+const playPhoneRing = () => {
+    beep(440, 0.35, 'sine', 0.15);
+    setTimeout(() => beep(480, 0.35, 'sine', 0.15), 45);
+};
+
+const playSiren = () => {
+    beep(850, 0.25, 'sawtooth', 0.2);
+    setTimeout(() => beep(650, 0.25, 'sawtooth', 0.2), 250);
+};
+
+const playPowerDown = () => beep(220, 0.5, 'triangle', 0.2);
+
+/* ==========================================================================
+   2. Geodesic Distance Helper (Native Leaflet with simple fallback)
+   ========================================================================== */
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+    if (typeof L !== 'undefined' && L.latLng) {
+        return L.latLng(lat1, lon1).distanceTo(L.latLng(lat2, lon2)) / 1000;
     }
-}
-
-function playChime(incoming = false) {
-    if (incoming) {
-        playTone(520, 'sine', 0.12, 0.1);
-        setTimeout(() => playTone(680, 'sine', 0.2, 0.12), 120);
-    } else {
-        playTone(680, 'sine', 0.1, 0.1);
-        setTimeout(() => playTone(840, 'sine', 0.15, 0.12), 90);
-    }
-}
-
-function playPhoneRing() {
-    playTone(440, 'sine', 0.4, 0.15);
-    setTimeout(() => playTone(480, 'sine', 0.4, 0.15), 50);
-}
-
-function playSiren() {
-    playTone(850, 'sawtooth', 0.25, 0.2);
-    setTimeout(() => playTone(650, 'sawtooth', 0.25, 0.2), 250);
-}
-
-function playPowerDown() {
-    try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(400, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.6);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.6);
-    } catch (e) {}
+    const dLat = (lat2 - lat1) * 111.32;
+    const dLon = (lon2 - lon1) * 111.32 * Math.cos(lat1 * Math.PI / 180);
+    return Math.hypot(dLat, dLon);
 }
 
 /* ==========================================================================
-   DOM Ready Initialization
+   3. DOM Ready Initialization
    ========================================================================== */
 document.addEventListener("DOMContentLoaded", () => {
     try { initMap(); } catch (err) { console.error("Map init error:", err); }
@@ -143,39 +120,49 @@ document.addEventListener("DOMContentLoaded", () => {
     try { initPhoneDetails(); } catch (err) { console.error("Phone details init error:", err); }
     try { setupBatterySlider(); } catch (err) { console.error("Slider setup error:", err); }
 
-    // Initial police station scan
-    fetchNearbyPoliceStations(userCoords.lat, userCoords.lng);
-    fetchLiveAddress(userCoords.lat, userCoords.lng);
+    // Instant render: Show verified emergency police hubs immediately without awaiting network
+    loadFallbackPoliceStations(userCoords.lat, userCoords.lng);
 
-    // Click anywhere to wake audio context
-    document.addEventListener("click", () => { getAudioContext(); }, { once: true });
+    // Background asynchronous enrichment
+    fetchLiveAddress(userCoords.lat, userCoords.lng);
+    fetchNearbyPoliceStations(userCoords.lat, userCoords.lng);
+
+    // AudioContext unlock on first user interaction
+    document.addEventListener("click", () => {
+        if (!audioCtx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) audioCtx = new AC();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }, { once: true });
 });
 
 /* ==========================================================================
-   1. Interactive Map & Live Geolocation
+   4. Interactive Map & Live Geolocation
    ========================================================================== */
 function initMap() {
     if (typeof L === 'undefined') {
-        console.error("Leaflet library not loaded yet");
+        console.warn("Leaflet library loading asynchronously...");
+        setTimeout(initMap, 200);
         return;
     }
 
     const mapElem = document.getElementById('leaflet-map');
-    if (!mapElem) return;
+    if (!mapElem || map) return;
 
     map = L.map('leaflet-map', {
         zoomControl: true,
         attributionControl: true
     }).setView([userCoords.lat, userCoords.lng], 14);
 
-    // 100% Free & Open-Access OpenStreetMap Tiles
+    // Free OpenStreetMap Tiles
     tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         subdomains: ['a', 'b', 'c'],
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
     }).addTo(map);
 
-    // User Location Marker (Cyan Pulsing Dot)
+    // User Location Marker (Cyan Pulsing Radar)
     const userIcon = L.divIcon({
         className: 'user-map-pin',
         html: `<div style="background:#38bdf8; width:20px; height:20px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 16px #38bdf8; animation:pulse 1.8s infinite;"></div>`,
@@ -183,9 +170,9 @@ function initMap() {
         iconAnchor: [11, 11]
     });
     userMarker = L.marker([userCoords.lat, userCoords.lng], { icon: userIcon }).addTo(map)
-        .bindPopup("<b>📍 Your Live Location</b><br><span id='popup-address'>Yatra Rakshaka Active</span>");
+        .bindPopup("<b>📍 Your Live Location</b><br><span id='popup-address'>Yatra Rakshaka Sentinel Active</span>");
 
-    // Cab Driver Marker (Emerald Green Vehicle Icon)
+    // Cab Driver Marker (Emerald Green Vehicle Pin)
     const cabIcon = L.divIcon({
         className: 'cab-map-pin',
         html: `<div style="background:#10b981; width:30px; height:30px; border-radius:50%; border:3px solid #ffffff; display:flex; align-items:center; justify-content:center; color:#ffffff; font-size:13px; box-shadow:0 0 14px rgba(16, 185, 129, 0.6);"><i class="fa-solid fa-car"></i></div>`,
@@ -193,9 +180,9 @@ function initMap() {
         iconAnchor: [16, 16]
     });
     driverMarker = L.marker([driverCoords.lat, driverCoords.lng], { icon: cabIcon }).addTo(map)
-        .bindPopup(`<b>🚖 ${activeCab.name} (${activeCab.type})</b><br>Plate: ${activeCab.plate}<br>Status: En route to your location`);
+        .bindPopup(`<b>🚖 ${activeCab.name} (${activeCab.model})</b><br>Plate: ${activeCab.plate}<br>Status: En route to pickup`);
 
-    // Connecting Route Polyline
+    // Route Polyline
     routePolyline = L.polyline([
         [driverCoords.lat, driverCoords.lng],
         [userCoords.lat, userCoords.lng]
@@ -207,6 +194,7 @@ function initMap() {
     }).addTo(map);
 
     startCabMovementSimulation();
+    plotPoliceStationsOnMap();
 }
 
 function toggleMapTheme() {
@@ -256,8 +244,8 @@ function initLocationTracking() {
                 if (coordsElem) coordsElem.textContent = `Lat: ${userCoords.lat.toFixed(4)}°, Lng: ${userCoords.lng.toFixed(4)}° (±${acc}m)`;
                 if (statusElem) statusElem.textContent = "GPS: Live Active";
 
-                // Re-scan reverse address and police stations if position changed significantly
-                const distMoved = calculateHaversineDistance(oldLat, oldLng, userCoords.lat, userCoords.lng);
+                // Re-scan reverse address and police stations if user moved > 500m
+                const distMoved = getDistanceKm(oldLat, oldLng, userCoords.lat, userCoords.lng);
                 if (distMoved > 0.5) {
                     fetchLiveAddress(userCoords.lat, userCoords.lng);
                     fetchNearbyPoliceStations(userCoords.lat, userCoords.lng);
@@ -278,22 +266,20 @@ function startCabMovementSimulation() {
     setInterval(() => {
         if (activeCab.status !== 'enroute') return;
         t += 0.04;
-        
+
         const dLat = userCoords.lat - driverCoords.lat;
         const dLng = userCoords.lng - driverCoords.lng;
-        
+
         driverCoords.lat += (dLat * 0.02) + (Math.sin(t) * 0.0001);
         driverCoords.lng += (dLng * 0.02) + (Math.cos(t) * 0.0001);
 
-        if (driverMarker) {
-            driverMarker.setLatLng([driverCoords.lat, driverCoords.lng]);
-        }
+        if (driverMarker) driverMarker.setLatLng([driverCoords.lat, driverCoords.lng]);
         if (routePolyline) {
             routePolyline.setLatLngs([[driverCoords.lat, driverCoords.lng], [userCoords.lat, userCoords.lng]]);
         }
 
-        const dist = calculateHaversineDistance(driverCoords.lat, driverCoords.lng, userCoords.lat, userCoords.lng);
-        distanceKm = Math.max(0.1, dist.toFixed(1));
+        const dist = getDistanceKm(driverCoords.lat, driverCoords.lng, userCoords.lat, userCoords.lng);
+        distanceKm = Math.max(0.1, parseFloat(dist.toFixed(1)));
         cabSpeed = Math.floor(32 + Math.sin(t * 2) * 8);
 
         const speedElem = document.getElementById("live-speed");
@@ -308,7 +294,7 @@ function startCabMovementSimulation() {
 }
 
 /* ==========================================================================
-   2. Real Nominatim Reverse Geocoding (Fetch Exact Street & City)
+   5. Real Nominatim Reverse Geocoding (Fetch Exact Street & City)
    ========================================================================== */
 async function fetchLiveAddress(lat, lng) {
     const addressElem = document.getElementById("live-address-text");
@@ -322,7 +308,7 @@ async function fetchLiveAddress(lat, lng) {
             const road = data.address.road || data.address.suburb || data.address.neighbourhood || "";
             const city = data.address.city || data.address.town || data.address.state_district || data.address.state || "";
             userAddress = road ? `${road}, ${city}` : (data.display_name ? data.display_name.split(",").slice(0, 3).join(",") : "New Delhi, India");
-            
+
             if (addressElem) addressElem.textContent = userAddress;
             const popup = document.getElementById("popup-address");
             if (popup) popup.textContent = userAddress;
@@ -334,32 +320,48 @@ async function fetchLiveAddress(lat, lng) {
 }
 
 /* ==========================================================================
-   3. Real Overpass API Police Station Scanner (10km Radius)
+   6. Police Station Hubs & Non-Blocking Overpass Enrichment
    ========================================================================== */
-async function fetchNearbyPoliceStations(lat, lng) {
-    const listContainer = document.getElementById("police-station-list");
+function loadFallbackPoliceStations(lat, lng) {
     const statusElem = document.getElementById("police-scan-status");
+    nearbyPoliceStations = [
+        { name: "National Emergency Command (PCR)", distance: "Direct Line", phone: "112", address: "24x7 Central Emergency Dispatch", lat: lat + 0.004, lng: lng + 0.003 },
+        { name: "Central Police Station HQ", distance: "0.8 km", phone: "011-23412345", address: "Circle Police HQ & Quick Response Team", lat: lat + 0.006, lng: lng - 0.005 },
+        { name: "Women Safety Cell Helpline", distance: "1.4 km", phone: "1091", address: "Dedicated Women Transit Protection Wing", lat: lat - 0.005, lng: lng + 0.006 },
+        { name: "Traffic & Highway Patrol Desk", distance: "2.1 km", phone: "103", address: "Rapid Transit Vehicle Patrol Division", lat: lat - 0.008, lng: lng - 0.004 }
+    ];
+
+    renderPoliceStations();
+    plotPoliceStationsOnMap();
 
     if (statusElem) {
-        statusElem.innerHTML = `<i class="fa-solid fa-satellite-dish fa-spin"></i> Scanning 10km radius via Overpass...`;
+        statusElem.innerHTML = `🟢 Verified 24x7 Emergency Hubs Active`;
     }
+}
+
+async function fetchNearbyPoliceStations(lat, lng) {
+    const statusElem = document.getElementById("police-scan-status");
 
     try {
-        const overpassQuery = `[out:json][timeout:8];(node["amenity"="police"](around:10000,${lat},${lng});way["amenity"="police"](around:10000,${lat},${lng}););out center 8;`;
+        const overpassQuery = `[out:json][timeout:6];(node["amenity"="police"](around:8000,${lat},${lng});way["amenity"="police"](around:8000,${lat},${lng}););out center 6;`;
         const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
 
-        const response = await fetch(url);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (!response.ok) throw new Error("Overpass API request failed");
         const data = await response.json();
 
         if (data && data.elements && data.elements.length > 0) {
-            nearbyPoliceStations = data.elements.map(el => {
+            const liveStations = data.elements.map(el => {
                 const pLat = el.lat || (el.center ? el.center.lat : lat);
                 const pLng = el.lon || (el.center ? el.center.lon : lng);
                 const name = el.tags.name || el.tags["name:en"] || "Local Police Station";
                 const phone = el.tags.phone || el.tags["contact:phone"] || "112";
                 const address = el.tags["addr:street"] ? `${el.tags["addr:street"]}, ${el.tags["addr:city"] || ""}` : "Jurisdiction Division";
-                const distKm = calculateHaversineDistance(lat, lng, pLat, pLng).toFixed(1);
+                const distKm = getDistanceKm(lat, lng, pLat, pLng).toFixed(1);
 
                 return {
                     name: name,
@@ -372,54 +374,37 @@ async function fetchNearbyPoliceStations(lat, lng) {
                 };
             }).sort((a, b) => a.distNum - b.distNum);
 
-            // Add National Emergency Hub to top of list
-            nearbyPoliceStations.unshift({
-                name: "National Emergency Response (Police / PCR)",
-                distance: "Direct Dispatch",
+            // Keep emergency 112 at top
+            liveStations.unshift({
+                name: "National Emergency Command (PCR)",
+                distance: "Direct Line",
                 distNum: 0,
                 phone: "112",
-                address: "24x7 Nationwide Rapid Response Network",
+                address: "24x7 Nationwide Central Dispatch",
                 lat: lat + 0.003,
                 lng: lng + 0.003
             });
 
+            nearbyPoliceStations = liveStations;
             renderPoliceStations();
             plotPoliceStationsOnMap();
 
             if (statusElem) {
-                statusElem.innerHTML = `🟢 ${nearbyPoliceStations.length} police response hubs verified within 10km`;
+                statusElem.innerHTML = `🟢 ${nearbyPoliceStations.length} police response hubs mapped`;
             }
-            return;
         }
     } catch (e) {
-        console.warn("Overpass API fallback active:", e);
-    }
-
-    // Fallback: Real Verified Emergency Hubs
-    loadFallbackPoliceStations(lat, lng);
-}
-
-function loadFallbackPoliceStations(lat, lng) {
-    const statusElem = document.getElementById("police-scan-status");
-    nearbyPoliceStations = [
-        { name: "National Emergency Command (PCR)", distance: "Direct Line", phone: "112", address: "24x7 Centralized Emergency Dispatch", lat: lat + 0.004, lng: lng + 0.003 },
-        { name: "Central Police Station HQ", distance: "0.8 km", phone: "011-23412345", address: "Circle Police HQ & Quick Response Team", lat: lat + 0.006, lng: lng - 0.005 },
-        { name: "Women Safety Cell & Rapid Helpline", distance: "1.4 km", phone: "1091", address: "Dedicated Women Transit Security Wing", lat: lat - 0.005, lng: lng + 0.006 },
-        { name: "Traffic & Transit Enforcement Desk", distance: "2.1 km", phone: "103", address: "Highway & City Vehicle Patrol Division", lat: lat - 0.008, lng: lng - 0.004 }
-    ];
-
-    renderPoliceStations();
-    plotPoliceStationsOnMap();
-
-    if (statusElem) {
-        statusElem.innerHTML = `🟢 Verified 24x7 Police Emergency Hubs Linked`;
+        console.warn("Overpass API unavailable or timed out; standard emergency hubs active:", e.message);
+        if (statusElem) {
+            statusElem.innerHTML = `🟢 24x7 Emergency Hubs Linked`;
+        }
     }
 }
 
 function plotPoliceStationsOnMap() {
     if (!map) return;
-    
-    // Clear old police markers
+
+    // Clear previous police markers
     policeMapMarkers.forEach(m => map.removeLayer(m));
     policeMapMarkers = [];
 
@@ -451,10 +436,10 @@ function renderPoliceStations() {
                 <p><i class="fa-solid fa-location-dot" style="color:#ef4444;"></i> ${station.distance} • ${station.address}</p>
             </div>
             <div class="police-actions">
-                <button class="police-btn police-call" onclick="openPoliceCallModal('${station.name}', '${station.phone}')" title="Emergency Call ${station.name}">
+                <button class="police-btn police-call" onclick="openCallModal('${station.name.replace(/'/g, "\\'")}', '${station.phone}', 'Emergency Dispatch')" title="Call ${station.name}">
                     <i class="fa-solid fa-phone"></i>
                 </button>
-                <button class="police-btn police-nav" onclick="navigatePolice('${station.name}')" title="Directions in Maps">
+                <button class="police-btn police-nav" onclick="navigatePolice('${station.name.replace(/'/g, "\\'")}')" title="Directions in Google Maps">
                     <i class="fa-solid fa-diamond-turn-right"></i>
                 </button>
             </div>
@@ -473,27 +458,13 @@ function navigatePolice(name) {
     window.open(`https://www.google.com/maps/search/${query}`, '_blank');
 }
 
-/* Haversine Geodesic Distance Formula */
-function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-}
-
 /* ==========================================================================
-   4. Custom Cab Management & Safety Beacon
+   7. Custom Cab Management & Safety Beacon
    ========================================================================== */
 function openCabModal() {
     const modal = document.getElementById("cab-modal");
     if (modal) modal.classList.remove("hidden");
 
-    // Pre-fill inputs with current cab state
     const plateInput = document.getElementById("input-plate");
     const nameInput = document.getElementById("input-driver-name");
     const phoneInput = document.getElementById("input-driver-phone");
@@ -532,18 +503,22 @@ function handleCabSubmit(e) {
     activeCab.model = model;
     activeCab.status = status;
 
-    // Update DOM elements
-    document.getElementById("driver-name").textContent = activeCab.name;
-    document.getElementById("car-plate").textContent = activeCab.plate;
-    document.getElementById("cab-model").innerHTML = `<i class="fa-solid fa-car"></i> ${activeCab.model}`;
-    document.getElementById("driver-phone-val").textContent = activeCab.phone;
-    document.getElementById("police-flagged-plate").textContent = activeCab.plate;
+    // Update Driver Card in DOM
+    const nameEl = document.getElementById("driver-name");
+    const plateEl = document.getElementById("car-plate");
+    const modelEl = document.getElementById("cab-model");
+    const phoneEl = document.getElementById("driver-phone-val");
 
-    // Update Chat & Call references
-    document.getElementById("chat-driver-name").textContent = activeCab.name;
-    document.getElementById("chat-driver-status").textContent = `🟢 Online • ${activeCab.plate}`;
-    document.getElementById("call-status-title").textContent = `Calling ${activeCab.name}...`;
-    document.getElementById("call-driver-number").textContent = `${activeCab.phone} (${activeCab.model})`;
+    if (nameEl) nameEl.textContent = activeCab.name;
+    if (plateEl) plateEl.textContent = activeCab.plate;
+    if (modelEl) modelEl.innerHTML = `<i class="fa-solid fa-car"></i> ${activeCab.model}`;
+    if (phoneEl) phoneEl.textContent = activeCab.phone;
+
+    // Update Chat References
+    const chatName = document.getElementById("chat-driver-name");
+    const chatStatus = document.getElementById("chat-driver-status");
+    if (chatName) chatName.textContent = activeCab.name;
+    if (chatStatus) chatStatus.textContent = `🟢 Online • ${activeCab.plate}`;
 
     // Update Ride Status Badge
     const badge = document.getElementById("ride-status-badge");
@@ -560,31 +535,32 @@ function handleCabSubmit(e) {
         }
     }
 
+    // Update map marker popup
+    if (driverMarker) {
+        driverMarker.bindPopup(`<b>🚖 ${activeCab.name} (${activeCab.model})</b><br>Plate: ${activeCab.plate}<br>Status: ${status}`);
+    }
+
     closeCabModal();
     playChime(false);
     showToast(`🚕 Safe Ride Activated for ${activeCab.plate}!`);
 }
 
-/* Share Safety Beacon Modal */
 function generateSafetyBeaconPayload() {
     const mapsLink = `https://www.google.com/maps?q=${userCoords.lat.toFixed(5)},${userCoords.lng.toFixed(5)}`;
-    return `🚨 Yatra Rakshaka Live Passenger Safety Beacon:\n\n` +
-           `👤 Passenger is travelling with: ${activeCab.name}\n` +
+    return `🚨 Yatra Rakshaka Live Safety Beacon:\n\n` +
+           `👤 Passenger travelling with: ${activeCab.name}\n` +
            `🚗 Vehicle: ${activeCab.model} (${activeCab.plate})\n` +
            `📞 Driver Contact: ${activeCab.phone}\n` +
-           `🔐 Ride OTP: ${activeCab.otp} | Trip: ${activeCab.tripId}\n` +
+           `🔐 Ride OTP: ${activeCab.otp} | Trip ID: ${activeCab.tripId}\n` +
            `📍 Current Location: ${userAddress}\n` +
            `🗺️ Live GPS Tracking: ${mapsLink}\n\n` +
-           `Transmitted via Yatra Rakshaka Sentinel Shield.`;
+           `Transmitted via Yatra Rakshaka Sentinel.`;
 }
 
 function openShareModal() {
     const modal = document.getElementById("share-modal");
     const previewBox = document.getElementById("beacon-preview-box");
-    
-    if (previewBox) {
-        previewBox.textContent = generateSafetyBeaconPayload();
-    }
+    if (previewBox) previewBox.textContent = generateSafetyBeaconPayload();
     if (modal) modal.classList.remove("hidden");
 }
 
@@ -607,19 +583,31 @@ function shareViaSms() {
 
 function copyShareBeacon() {
     const payload = generateSafetyBeaconPayload();
-    if (navigator.clipboard) {
+    if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(payload).then(() => {
             playChime(false);
-            showToast("📋 Safety Beacon text copied to clipboard!");
+            showToast("📋 Safety Beacon copied to clipboard!");
             closeShareModal();
-        });
+        }).catch(() => fallbackCopy(payload));
     } else {
-        alert(payload);
+        fallbackCopy(payload);
     }
 }
 
+function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+    playChime(false);
+    showToast("📋 Safety Beacon copied to clipboard!");
+    closeShareModal();
+}
+
 /* ==========================================================================
-   5. Battery Diagnostics & 5% Auto Ultra Saver
+   8. Battery Diagnostics & 5% Auto Ultra Saver Mode
    ========================================================================== */
 function initBatteryDiagnostics() {
     if ('getBattery' in navigator) {
@@ -627,8 +615,7 @@ function initBatteryDiagnostics() {
             handleBatteryEvent(battery);
             battery.addEventListener('levelchange', () => handleBatteryEvent(battery));
             battery.addEventListener('chargingchange', () => handleBatteryEvent(battery));
-        }).catch(err => {
-            console.warn("Battery status API not permitted, fallback to demo simulator:", err);
+        }).catch(() => {
             updateBatteryDisplay(85, false);
         });
     } else {
@@ -660,27 +647,26 @@ function updateBatteryDisplay(percent, isCharging) {
     const simValElem = document.getElementById("battery-sim-val");
     const sliderElem = document.getElementById("battery-slider");
     const iconElem = document.getElementById("phone-bat-icon");
+    const headerIcon = document.getElementById("header-battery-icon");
 
     if (percentElem) percentElem.textContent = `${percent}%`;
     if (fillElem) {
         fillElem.style.width = `${percent}%`;
-        if (percent <= 5) fillElem.style.background = "#ff0000";
-        else if (percent <= 20) fillElem.style.background = "#f59e0b";
-        else fillElem.style.background = "linear-gradient(90deg, #10b981, #06b6d4)";
+        fillElem.style.background = percent <= 5 ? "#ef4444" : (percent <= 20 ? "#f59e0b" : "linear-gradient(90deg, #10b981, #06b6d4)");
     }
     if (simValElem) simValElem.textContent = `${percent}%`;
     if (sliderElem && sliderElem.value != percent) sliderElem.value = percent;
 
-    if (iconElem) {
-        if (percent <= 10) iconElem.className = "fa-solid fa-battery-empty";
-        else if (percent <= 30) iconElem.className = "fa-solid fa-battery-quarter";
-        else if (percent <= 70) iconElem.className = "fa-solid fa-battery-half";
-        else iconElem.className = "fa-solid fa-battery-full";
-    }
+    const iconClass = percent <= 10 ? "fa-solid fa-battery-empty" :
+                     (percent <= 30 ? "fa-solid fa-battery-quarter" :
+                     (percent <= 70 ? "fa-solid fa-battery-half" : "fa-solid fa-battery-full"));
+
+    if (iconElem) iconElem.className = iconClass;
+    if (headerIcon) headerIcon.className = iconClass;
 
     if (chargingElem) {
-        chargingElem.innerHTML = isCharging ? 
-            `<i class="fa-solid fa-bolt" style="color:#10b981;"></i> Charging` : 
+        chargingElem.innerHTML = isCharging ?
+            `<i class="fa-solid fa-bolt" style="color:#10b981;"></i> Charging` :
             `<i class="fa-solid fa-plug"></i> Discharging`;
     }
 
@@ -737,14 +723,14 @@ function manualToggleSaver() {
 }
 
 /* ==========================================================================
-   6. Device & Phone Telemetry Diagnostics
+   9. Device & Platform Telemetry
    ========================================================================== */
 function initPhoneDetails() {
     const ua = navigator.userAgent;
     let osInfo = "Android Mobile Device";
 
-    if (/Android/i.test(ua)) osInfo = "Android 14 (ARM64)";
-    else if (/iPhone|iPad|iPod/i.test(ua)) osInfo = "Apple iOS Device (A-Series)";
+    if (/Android/i.test(ua)) osInfo = "Android Mobile (ARM64)";
+    else if (/iPhone|iPad|iPod/i.test(ua)) osInfo = "Apple iOS Device";
     else if (/Linux/i.test(ua)) osInfo = "Linux Workstation / Mobile";
     else if (/Windows/i.test(ua)) osInfo = "Windows 11 (x86_64)";
     else if (/Mac/i.test(ua)) osInfo = "macOS (Apple Silicon)";
@@ -778,7 +764,7 @@ function initPhoneDetails() {
 }
 
 /* ==========================================================================
-   7. In-App Messaging Chat Drawer
+   10. In-App Messaging Chat Drawer
    ========================================================================== */
 function openChatDrawer() {
     const drawer = document.getElementById("chat-drawer");
@@ -814,10 +800,10 @@ function sendMessage() {
     setTimeout(() => {
         if (typing) typing.classList.add("hidden");
         const responses = [
-            `Namaste sir! I am driving ${activeCab.plate}, reaching you shortly.`,
+            `Namaste! I am driving ${activeCab.plate}, reaching in 3 minutes.`,
             `Yes sir, I am following the GPS route. AC is turned on.`,
-            `Safety is guaranteed sir, Rakhsha beacon is verified.`,
-            `Vehicle speed is ${cabSpeed} km/h, reaching in 2 minutes.`
+            `Ride is verified, following the safest route.`,
+            `Vehicle speed is ${cabSpeed} km/h, reaching your pickup location.`
         ];
         const reply = responses[Math.floor(Math.random() * responses.length)];
         appendChatMessage(reply, "incoming");
@@ -833,7 +819,7 @@ function sendMessage() {
             }
             showToast(`💬 ${activeCab.name}: "${reply.substring(0, 32)}..."`);
         }
-    }, 1400);
+    }, 1200);
 }
 
 function sendQuickMessage(msg) {
@@ -845,12 +831,12 @@ function sendQuickMessage(msg) {
 
     setTimeout(() => {
         if (typing) typing.classList.add("hidden");
-        const reply = msg.includes("Stop") || msg.includes("unsafe") ? 
-            "⚠️ Sir, pulling over to the side immediately! Transit alert registered." : 
-            `Ji sir, acknowledged! Following safety route in ${activeCab.plate}.`;
+        const reply = msg.includes("Stop") || msg.includes("unsafe") ?
+            "⚠️ Pulling over immediately sir! Alert registered." :
+            `Ji sir, acknowledged! Route verified in ${activeCab.plate}.`;
         appendChatMessage(reply, "incoming");
         playChime(true);
-    }, 1200);
+    }, 1000);
 }
 
 function appendChatMessage(text, type) {
@@ -870,39 +856,51 @@ function appendChatMessage(text, type) {
 }
 
 /* ==========================================================================
-   8. Voice Call Simulator
+   11. Unified Voice Call Simulator (Driver & Police Emergency Desk)
    ========================================================================== */
-function openCallModal() {
+function openCallModal(name = activeCab.name, phone = activeCab.phone, role = 'Cab Driver') {
     const modal = document.getElementById("call-modal");
-    if (modal) modal.classList.remove("hidden");
+    if (!modal) return;
+    modal.classList.remove("hidden");
 
     isCallActive = true;
     callSeconds = 0;
     isMuted = false;
     isSpeaker = false;
 
-    const timer = document.getElementById("call-timer-text");
     const title = document.getElementById("call-status-title");
+    const number = document.getElementById("call-dialog-number");
+    const timer = document.getElementById("call-timer-text");
+    const avatar = document.getElementById("call-avatar-img");
 
-    if (title) title.textContent = `Calling ${activeCab.name}...`;
-    if (timer) timer.textContent = "Ringing...";
+    if (avatar) {
+        avatar.src = role.includes('Police') || role.includes('Emergency') ?
+            "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" :
+            "assets/driver.png";
+    }
+
+    if (title) title.textContent = `Calling ${name}...`;
+    if (number) number.textContent = `${phone} (${role})`;
+    if (timer) timer.textContent = "Connecting...";
 
     playPhoneRing();
+    if (ringAudioTimer) clearInterval(ringAudioTimer);
     ringAudioTimer = setInterval(playPhoneRing, 2800);
 
     setTimeout(() => {
         if (!isCallActive) return;
         if (ringAudioTimer) clearInterval(ringAudioTimer);
-        if (title) title.textContent = `Connected • ${activeCab.name}`;
+        if (title) title.textContent = `Connected • ${name}`;
         playChime(true);
 
+        if (callInterval) clearInterval(callInterval);
         callInterval = setInterval(() => {
             callSeconds++;
             const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
             const secs = String(callSeconds % 60).padStart(2, '0');
             if (timer) timer.textContent = `${mins}:${secs}`;
         }, 1000);
-    }, 2800);
+    }, 2400);
 }
 
 function closeCallModal() {
@@ -912,7 +910,7 @@ function closeCallModal() {
     if (ringAudioTimer) clearInterval(ringAudioTimer);
     if (callInterval) clearInterval(callInterval);
     isCallActive = false;
-    playTone(300, 'square', 0.2, 0.1);
+    beep(300, 0.2, 'square', 0.1);
     showToast("📞 Call ended");
 }
 
@@ -930,51 +928,13 @@ function toggleCallSpeaker() {
     showToast(isSpeaker ? "🔊 Speakerphone ON" : "🔈 Normal Earpiece");
 }
 
-/* Police Emergency Call Modal */
+// Alias for backwards compatibility
 function openPoliceCallModal(name, phone) {
-    const modal = document.getElementById("police-call-modal");
-    const title = document.getElementById("police-modal-title");
-    const number = document.getElementById("police-modal-number");
-    const timer = document.getElementById("police-modal-timer");
-
-    if (title) title.textContent = name;
-    if (number) number.textContent = `Dialing Emergency Helpline: ${phone}`;
-    if (timer) timer.textContent = "Connecting to Police Dispatch Desk...";
-
-    if (modal) modal.classList.remove("hidden");
-    isPoliceCallActive = true;
-    policeCallSeconds = 0;
-
-    playPhoneRing();
-    ringAudioTimer = setInterval(playPhoneRing, 3000);
-
-    setTimeout(() => {
-        if (!isPoliceCallActive) return;
-        if (ringAudioTimer) clearInterval(ringAudioTimer);
-        if (timer) timer.textContent = "Connected • Emergency Dispatcher on Line";
-        playChime(true);
-
-        policeCallInterval = setInterval(() => {
-            policeCallSeconds++;
-            const mins = String(Math.floor(policeCallSeconds / 60)).padStart(2, '0');
-            const secs = String(policeCallSeconds % 60).padStart(2, '0');
-            if (timer) timer.textContent = `Connected: ${mins}:${secs} (Audio Recording Transmitted)`;
-        }, 1000);
-    }, 3200);
-}
-
-function closePoliceCallModal() {
-    const modal = document.getElementById("police-call-modal");
-    if (modal) modal.classList.add("hidden");
-    if (ringAudioTimer) clearInterval(ringAudioTimer);
-    if (policeCallInterval) clearInterval(policeCallInterval);
-    isPoliceCallActive = false;
-    playTone(320, 'square', 0.2, 0.1);
-    showToast("📞 Police emergency call ended");
+    openCallModal(name, phone, 'Emergency Dispatch');
 }
 
 /* ==========================================================================
-   9. Emergency SOS Siren & Beacon
+   12. Emergency SOS Siren & Central Dispatch Alert
    ========================================================================== */
 function openSosModal() {
     const modal = document.getElementById("sos-modal");
@@ -1010,19 +970,19 @@ function triggerInstantSos() {
     if (sosInterval) clearInterval(sosInterval);
     cancelSosModal();
 
-    playTone(900, 'sawtooth', 0.5, 0.3);
+    beep(900, 0.5, 'sawtooth', 0.3);
 
     alert(`🚨 EMERGENCY SOS BROADCASTED!\n\n` +
-          `1. Live GPS Location (${userAddress} | Lat: ${userCoords.lat.toFixed(4)}, Lng: ${userCoords.lng.toFixed(4)}) sent to Central Police Control Room.\n` +
-          `2. Emergency SMS sent to pre-configured family contacts.\n` +
+          `1. Live GPS Location (${userAddress} | Lat: ${userCoords.lat.toFixed(4)}, Lng: ${userCoords.lng.toFixed(4)}) transmitted to Central Police Control Room.\n` +
+          `2. Emergency SMS sent to pre-configured trusted family contacts.\n` +
           `3. Vehicle ${activeCab.plate} (${activeCab.model}) flagged in PCR network.\n` +
-          `4. In-cab emergency audio recording initiated.`);
+          `4. In-cab emergency audio telemetry initiated.`);
 
     showToast("🚨 POLICE DISPATCH ALERT BROADCASTED!");
 }
 
 /* ==========================================================================
-   Toast Notification Utility
+   13. Toast Notification Utility
    ========================================================================== */
 function showToast(message) {
     const container = document.getElementById("toast-container");
@@ -1037,5 +997,5 @@ function showToast(message) {
         if (toast && toast.parentNode) {
             toast.parentNode.removeChild(toast);
         }
-    }, 3000);
+    }, 2800);
 }
