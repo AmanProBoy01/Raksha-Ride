@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rakhsha Ride | Smart Cab & Emergency Sentinel</title>
+    <title>Yatra Rakshaka | Real-Time Cab Sentinel & Emergency SOS</title>
     
-    <!-- Inline SVG Favicon (prevents 404) -->
+    <!-- Inline SVG Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
 
     <!-- Fonts -->
@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <!-- FontAwesome & Leaflet CSS (with dual-path fallback for assets/ or root) -->
+    <!-- FontAwesome & Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="assets/leaflet.css" onerror="this.onerror=null;this.href='leaflet.css';" />
     
@@ -34,8 +34,8 @@
         <div class="header-brand">
             <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
             <div class="brand-text">
-                <h1>Rakhsha <span>Ride</span></h1>
-                <p>Real-Time Cab Sentinel & Emergency SOS</p>
+                <h1>Yatra <span>Rakshaka</span></h1>
+                <p>Real-Time Passenger Sentinel & Emergency Shield</p>
             </div>
         </div>
 
@@ -67,7 +67,7 @@
         <!-- Left Column: Map & Live Tracking -->
         <section class="card map-section">
             <div class="card-header">
-                <h2><i class="fa-solid fa-map-location-dot"></i> Live Route & Location Tracking</h2>
+                <h2><i class="fa-solid fa-map-location-dot"></i> Live GPS Radar & Police Map</h2>
                 <div class="card-actions">
                     <button class="icon-btn" onclick="recenterMap()" title="Center Map on My Location"><i class="fa-solid fa-crosshairs"></i></button>
                     <button class="icon-btn" onclick="toggleMapTheme()" id="map-theme-btn" title="Toggle Dark/Light Map"><i class="fa-solid fa-moon"></i></button>
@@ -80,7 +80,11 @@
                 <div class="map-live-overlay">
                     <div class="geo-badge">
                         <i class="fa-solid fa-location-arrow"></i>
-                        <span id="live-coords">Lat: 28.6139° N, Lng: 77.2090° E</span>
+                        <span id="live-coords">Detecting GPS position...</span>
+                    </div>
+                    <div class="address-badge" id="live-address-badge">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span id="live-address-text">Resolving street address...</span>
                     </div>
                     <div class="speed-badge">
                         <i class="fa-solid fa-gauge-high"></i>
@@ -97,38 +101,43 @@
         <!-- Right Column Grid -->
         <div class="right-column-grid">
 
-            <!-- Cab Driver Data Card -->
+            <!-- Cab Driver Sentinel Card -->
             <section class="card driver-card">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-taxi"></i> Cab Driver Data</h2>
-                    <span class="badge verified-badge"><i class="fa-solid fa-circle-check"></i> Police Verified</span>
+                    <h2><i class="fa-solid fa-taxi"></i> Safe Ride Sentinel</h2>
+                    <div class="driver-card-header-actions">
+                        <span class="badge ride-status-badge" id="ride-status-badge"><i class="fa-solid fa-circle-dot"></i> En Route</span>
+                        <button class="sm-edit-btn" onclick="openCabModal()" title="Enter your actual cab details">
+                            <i class="fa-solid fa-pen-to-square"></i> Change Cab
+                        </button>
+                    </div>
                 </div>
 
                 <div class="driver-profile-body">
                     <div class="driver-avatar-box">
                         <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver Avatar" id="driver-img">
                         <div class="driver-rating">
-                            <i class="fa-solid fa-star"></i> 4.9 <small>(1,420)</small>
+                            <i class="fa-solid fa-star"></i> <span id="driver-rating-val">4.9</span>
                         </div>
                     </div>
 
                     <div class="driver-details">
                         <h3 id="driver-name">Rajesh Kumar</h3>
-                        <p class="cab-model"><i class="fa-solid fa-car"></i> White Maruti Suzuki Dzire</p>
+                        <p class="cab-model" id="cab-model"><i class="fa-solid fa-car"></i> White Maruti Suzuki Dzire</p>
                         <div class="plate-number" id="car-plate">DL 01 AB 7890</div>
                         
                         <div class="trip-meta-row">
                             <div class="meta-item">
                                 <span class="meta-label">Trip ID</span>
-                                <span class="meta-val">#RR-9082</span>
+                                <span class="meta-val" id="trip-id-val">#YR-9082</span>
                             </div>
                             <div class="meta-item">
                                 <span class="meta-label">Ride OTP</span>
-                                <span class="meta-val highlight-otp">4892</span>
+                                <span class="meta-val highlight-otp" id="ride-otp-val">4892</span>
                             </div>
                             <div class="meta-item">
-                                <span class="meta-label">Status</span>
-                                <span class="meta-val status-enroute">En Route</span>
+                                <span class="meta-label">Driver Phone</span>
+                                <span class="meta-val" id="driver-phone-val">+91 98765 43210</span>
                             </div>
                         </div>
                     </div>
@@ -143,8 +152,8 @@
                         <i class="fa-solid fa-comments"></i> Message
                         <span class="chat-badge-count" id="chat-unread-badge">1</span>
                     </button>
-                    <button class="action-btn share-btn" onclick="shareTripDetails()">
-                        <i class="fa-solid fa-share-nodes"></i> Share Trip
+                    <button class="action-btn share-btn" onclick="openShareModal()">
+                        <i class="fa-solid fa-share-nodes"></i> Share Beacon
                     </button>
                 </div>
             </section>
@@ -223,29 +232,117 @@
                 </div>
             </section>
 
-            <!-- Near Police Station Contact Section -->
+            <!-- Near Police Station Contact Section (Real Overpass API Scanner) -->
             <section class="card police-card">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-building-shield"></i> Nearby Police Stations & SOS</h2>
-                    <button class="sm-text-btn" onclick="refreshPoliceStations()"><i class="fa-solid fa-rotate-right"></i> Refresh GPS</button>
+                    <div>
+                        <h2><i class="fa-solid fa-building-shield"></i> Nearby Police Stations</h2>
+                        <span id="police-scan-status" class="scan-status-text"><i class="fa-solid fa-satellite-dish"></i> Live GPS scan active</span>
+                    </div>
+                    <button class="sm-text-btn" onclick="refreshPoliceStations()"><i class="fa-solid fa-rotate-right"></i> Scan Again</button>
                 </div>
 
                 <div class="police-list" id="police-station-list">
-                    <!-- Dynamic rendering via JS -->
+                    <div class="loading-stations-notice">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                        <span>Scanning police stations around your live location...</span>
+                    </div>
                 </div>
             </section>
 
         </div>
     </main>
 
+    <!-- CUSTOM CAB DETAILS MODAL (ENTER / EDIT RIDE) -->
+    <div id="cab-modal" class="modal-overlay hidden">
+        <div class="cab-edit-card">
+            <div class="modal-header-row">
+                <h3><i class="fa-solid fa-taxi"></i> Safe Ride Details</h3>
+                <button class="modal-close-btn" onclick="closeCabModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="modal-subtext">Enter your active cab or auto-rickshaw details for live safety monitoring.</p>
+
+            <form id="cab-form" onsubmit="handleCabSubmit(event)">
+                <div class="form-group">
+                    <label>Vehicle Plate Number *</label>
+                    <input type="text" id="input-plate" placeholder="e.g. DL 01 AB 7890 / MH 02 CZ 4521" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Driver Name *</label>
+                        <input type="text" id="input-driver-name" placeholder="e.g. Rajesh Kumar" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Driver Phone Number</label>
+                        <input type="tel" id="input-driver-phone" placeholder="e.g. +91 98765 43210">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Vehicle Type</label>
+                        <select id="input-cab-type">
+                            <option value="White Maruti Suzuki Dzire (Sedan)">Sedan (Dzire / Etios)</option>
+                            <option value="Auto-Rickshaw (Yellow-Green)">Auto-Rickshaw</option>
+                            <option value="Hatchback (WagonR / Swift)">Hatchback (WagonR / Swift)</option>
+                            <option value="Prime SUV (Innova / Ertiga)">Prime SUV (Innova / Ertiga)</option>
+                            <option value="Bike Taxi">Bike Taxi</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ride Status</label>
+                        <select id="input-ride-status">
+                            <option value="enroute">Ride In Progress</option>
+                            <option value="waiting">Waiting for Driver</option>
+                            <option value="completed">Completed Safely</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-actions-row">
+                    <button type="button" class="cancel-btn" onclick="closeCabModal()">Cancel</button>
+                    <button type="submit" class="save-cab-btn"><i class="fa-solid fa-shield-check"></i> Save & Monitor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SHARE SAFETY BEACON MODAL (WHATSAPP & SMS) -->
+    <div id="share-modal" class="modal-overlay hidden">
+        <div class="share-beacon-card">
+            <div class="modal-header-row">
+                <h3><i class="fa-solid fa-share-nodes"></i> Broadcast Safety Beacon</h3>
+                <button class="modal-close-btn" onclick="closeShareModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="modal-subtext">Instantly transmit your live location, driver details & route link to trusted family or police.</p>
+
+            <div class="beacon-preview-box" id="beacon-preview-box">
+                <!-- Populated via JS -->
+            </div>
+
+            <div class="share-channel-buttons">
+                <button class="share-channel-btn whatsapp-btn" onclick="shareOnWhatsApp()">
+                    <i class="fa-brands fa-whatsapp"></i> Send via WhatsApp
+                </button>
+                <button class="share-channel-btn sms-btn" onclick="shareViaSms()">
+                    <i class="fa-solid fa-message"></i> Send via SMS
+                </button>
+                <button class="share-channel-btn copy-btn" onclick="copyShareBeacon()">
+                    <i class="fa-solid fa-copy"></i> Copy Beacon Text
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- IN-APP MESSAGING CHAT DRAWER -->
     <div id="chat-drawer" class="chat-drawer">
         <div class="chat-header">
             <div class="chat-driver-info">
-                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver" class="chat-avatar">
+                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver" class="chat-avatar" id="chat-driver-avatar">
                 <div>
-                    <h4>Rajesh Kumar (Cab Driver)</h4>
-                    <span class="online-status">🟢 Online • Dzire DL 01 AB 7890</span>
+                    <h4 id="chat-driver-name">Rajesh Kumar</h4>
+                    <span class="online-status" id="chat-driver-status">🟢 Online • Dzire DL 01 AB 7890</span>
                 </div>
             </div>
             <button class="close-chat-btn" onclick="closeChatDrawer()"><i class="fa-solid fa-xmark"></i></button>
@@ -280,11 +377,11 @@
     <div id="call-modal" class="modal-overlay hidden">
         <div class="call-card">
             <div class="call-avatar-wrap">
-                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver Avatar">
+                <img src="assets/driver.png" onerror="this.onerror=null;this.src='driver.png';" alt="Driver Avatar" id="call-driver-avatar">
                 <div class="call-pulse-ring"></div>
             </div>
             <h3 id="call-status-title">Calling Rajesh Kumar...</h3>
-            <p class="call-number">+91 98765 43210 (Cab Driver)</p>
+            <p class="call-number" id="call-driver-number">+91 98765 43210 (Cab Driver)</p>
             <p class="call-timer" id="call-timer-text">Ringing...</p>
 
             <div class="call-controls">
@@ -305,7 +402,7 @@
 
             <div class="dispatch-info-box">
                 <p><i class="fa-solid fa-location-crosshairs"></i> Live GPS Coordinates Transmitted</p>
-                <p><i class="fa-solid fa-taxi"></i> Vehicle Plate DL 01 AB 7890 Flagged</p>
+                <p><i class="fa-solid fa-taxi"></i> Vehicle Flagged: <span id="police-flagged-plate">DL 01 AB 7890</span></p>
             </div>
 
             <div class="call-controls">
@@ -335,7 +432,7 @@
     <!-- TOAST NOTIFICATION CONTAINER -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Scripts: Local Leaflet + Core App (with dual-path fallback) -->
+    <!-- Scripts: Local Leaflet + Core App -->
     <script src="assets/leaflet.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='leaflet.js';document.head.appendChild(s);"></script>
     <script src="app.js"></script>
 </body>
