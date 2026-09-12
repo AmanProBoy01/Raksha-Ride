@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.YatraRakshaka" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">#0a0d14</item>
+        <item name="colorPrimaryDark">#000000</item>
+        <item name="colorAccent">#38bdf8</item>
+        <item name="android:windowBackground">#0a0d14</item>
+    </style>
+
+    <style name="Theme.YatraRakshaka.Fullscreen" parent="Theme.YatraRakshaka">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

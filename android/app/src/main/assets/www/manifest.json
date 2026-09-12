@@ -1,0 +1,26 @@
+{
+  "name": "Yatra Rakshaka - Cab Sentinel",
+  "short_name": "YatraRakshaka",
+  "description": "Real-time passenger safety sentinel, cab telemetry, and emergency SOS shield",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0d14",
+  "theme_color": "#0a0d14",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["travel", "navigation", "utilities"]
+}
