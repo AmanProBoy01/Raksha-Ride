@@ -39,18 +39,26 @@
         </div>
 
         <div class="header-controls">
-            <!-- Battery Simulator -->
+            <!-- Demo Mode Indicator -->
+            <div id="demo-mode-badge" class="badge demo-badge hidden" title="Simulated environment active">
+                <i class="fa-solid fa-flask"></i> DEMO MODE
+            </div>
+
+            <!-- Battery Simulator & Reset -->
             <div class="battery-simulator-pill" title="Drag slider to test Auto 5% Saver">
                 <i class="fa-solid fa-battery-half" id="header-battery-icon"></i>
                 <span class="bat-label">Battery:</span>
-                <input type="range" id="battery-slider" min="1" max="100" value="85">
+                <input type="range" id="battery-slider" min="1" max="100" value="85" aria-label="Battery simulator slider">
                 <span id="battery-sim-val" class="bat-val">85%</span>
+                <button class="reset-bat-btn" id="reset-bat-btn" onclick="useRealBattery()" title="Restore real device battery monitoring">
+                    <i class="fa-solid fa-rotate-left"></i> Device
+                </button>
             </div>
 
             <!-- GPS Status -->
-            <div class="status-pill location-pill" id="gps-status-pill">
-                <span class="pulse-dot"></span>
-                <span id="gps-status-text">GPS: Live</span>
+            <div class="status-pill location-pill" id="gps-status-pill" aria-live="polite">
+                <span class="pulse-dot" id="gps-pulse-dot"></span>
+                <span id="gps-status-text">GPS: Acquiring...</span>
             </div>
 
             <!-- PWA Install Button -->
@@ -59,7 +67,7 @@
             </button>
 
             <!-- SOS Button -->
-            <button class="sos-header-btn" onclick="openSosModal()">
+            <button class="sos-header-btn" onclick="openSosModal()" aria-label="Trigger Emergency SOS">
                 <i class="fa-solid fa-bell"></i> SOS
             </button>
         </div>
@@ -73,6 +81,7 @@
             <div class="card-header">
                 <h2><i class="fa-solid fa-map-location-dot"></i> Live GPS Radar</h2>
                 <div class="card-actions">
+                    <button class="icon-btn demo-toggle-btn" id="demo-toggle-btn" onclick="toggleDemoMode()" title="Toggle Demo Simulation / Live GPS"><i class="fa-solid fa-flask"></i></button>
                     <button class="icon-btn" onclick="recenterMap()" title="Center Map"><i class="fa-solid fa-crosshairs"></i></button>
                     <button class="icon-btn" onclick="toggleMapTheme()" id="map-theme-btn" title="Toggle Theme"><i class="fa-solid fa-moon"></i></button>
                 </div>
@@ -84,19 +93,19 @@
                 <div class="map-live-overlay">
                     <div class="geo-badge">
                         <i class="fa-solid fa-location-arrow"></i>
-                        <span id="live-coords">Lat: 28.6139°, Lng: 77.2090°</span>
+                        <span id="live-coords" aria-live="polite">GPS: Initializing...</span>
                     </div>
                     <div class="address-badge" id="live-address-badge">
                         <i class="fa-solid fa-location-dot"></i>
-                        <span id="live-address-text">Connaught Place, New Delhi</span>
+                        <span id="live-address-text" aria-live="polite">Detecting location...</span>
                     </div>
                     <div class="speed-badge">
                         <i class="fa-solid fa-gauge-high"></i>
-                        <span id="live-speed">36 km/h</span>
+                        <span id="live-speed">Cab Speed: Idle</span>
                     </div>
                     <div class="eta-badge">
                         <i class="fa-solid fa-clock"></i>
-                        <span id="live-eta">ETA: 6 Mins</span>
+                        <span id="live-eta">ETA: Calculating</span>
                     </div>
                 </div>
             </div>
@@ -264,35 +273,41 @@
             <p class="modal-subtext">Enter active cab or auto details for real-time safety monitoring.</p>
 
             <form id="cab-form" onsubmit="handleCabSubmit(event)">
-                <div class="form-group">
-                    <label>Vehicle Plate Number *</label>
-                    <input type="text" id="input-plate" placeholder="e.g. DL 01 AB 7890" required>
-                </div>
-
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Driver Name *</label>
-                        <input type="text" id="input-driver-name" placeholder="e.g. Rajesh Kumar" required>
+                        <label for="input-plate">Vehicle Plate Number *</label>
+                        <input type="text" id="input-plate" placeholder="e.g. DL 01 AB 7890" maxlength="20" required>
                     </div>
                     <div class="form-group">
-                        <label>Driver Phone</label>
-                        <input type="tel" id="input-driver-phone" placeholder="e.g. +91 98765 43210">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Vehicle Type</label>
+                        <label for="input-cab-type">Vehicle Type</label>
                         <select id="input-cab-type">
-                            <option value="White Maruti Suzuki Dzire">White Maruti Suzuki Dzire</option>
-                            <option value="Auto-Rickshaw (Yellow-Green)">Auto-Rickshaw</option>
-                            <option value="Hatchback (Swift / WagonR)">Hatchback (Swift / WagonR)</option>
-                            <option value="Prime SUV (Innova / Ertiga)">Prime SUV (Innova)</option>
+                            <option value="Sedan">Sedan</option>
+                            <option value="Auto-Rickshaw">Auto-Rickshaw</option>
+                            <option value="Hatchback">Hatchback</option>
+                            <option value="SUV">SUV / Prime</option>
                             <option value="Bike Taxi">Bike Taxi</option>
                         </select>
                     </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
-                        <label>Ride Status</label>
+                        <label for="input-driver-name">Driver Name *</label>
+                        <input type="text" id="input-driver-name" placeholder="e.g. Rajesh Kumar" maxlength="50" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-driver-phone">Driver Phone *</label>
+                        <input type="tel" id="input-driver-phone" placeholder="e.g. +91 98765 43210" pattern="^\+?[0-9 ()-]{8,20}$" inputmode="tel" autocomplete="tel" maxlength="20" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="input-cab-model">Vehicle Model / Description *</label>
+                        <input type="text" id="input-cab-model" placeholder="e.g. White Maruti Suzuki Dzire" maxlength="60" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-ride-status">Ride Status</label>
                         <select id="input-ride-status">
                             <option value="enroute">Ride In Progress</option>
                             <option value="waiting">Waiting for Driver</option>
@@ -390,20 +405,63 @@
         </div>
     </div>
 
-    <!-- EMERGENCY SOS TRIGGER MODAL -->
-    <div id="sos-modal" class="modal-overlay hidden">
+    <!-- EMERGENCY SOS ACTION HUB MODAL -->
+    <div id="sos-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sos-modal-heading">
         <div class="modal-card sos-card">
-            <div class="sos-siren-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <h2>EMERGENCY SOS ALERT</h2>
-            <p>Distress beacon will broadcast your live location to Nearest Police Stations in:</p>
-            
-            <div class="sos-countdown-circle">
-                <span id="sos-countdown-num">5</span>
+            <!-- Stage 1: Countdown -->
+            <div id="sos-stage-countdown">
+                <div class="sos-siren-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <h2 id="sos-modal-heading">EMERGENCY DISTRESS BEACON</h2>
+                <p>Preparing emergency action hub and live coordinates in:</p>
+                
+                <div class="sos-countdown-circle">
+                    <span id="sos-countdown-num">5</span>
+                </div>
+
+                <div class="sos-modal-actions">
+                    <button type="button" class="cancel-sos-btn" onclick="cancelSosModal()">CANCEL SOS</button>
+                    <button type="button" class="instant-sos-btn" onclick="triggerInstantSos()">ACTION NOW</button>
+                </div>
             </div>
 
-            <div class="sos-modal-actions">
-                <button class="cancel-sos-btn" onclick="cancelSosModal()">CANCEL SOS</button>
-                <button class="instant-sos-btn" onclick="triggerInstantSos()">DISPATCH NOW</button>
+            <!-- Stage 2: Direct Emergency Dispatch Options (Truthful & Actionable) -->
+            <div id="sos-stage-actions" class="hidden">
+                <div class="sos-siren-icon alert-pulse"><i class="fa-solid fa-shield-heart"></i></div>
+                <h2 style="color:#ef4444;">EMERGENCY ACTIONS READY</h2>
+                <p class="modal-subtext">Immediate response options with your current verified coordinates.</p>
+
+                <div class="sos-action-buttons-list">
+                    <a href="tel:112" class="sos-action-btn call-112-btn" id="sos-call-112-link">
+                        <i class="fa-solid fa-phone"></i>
+                        <div>
+                            <strong>Call 112 (National Emergency)</strong>
+                            <small>Police, Ambulance & Fire Rapid Response</small>
+                        </div>
+                    </a>
+
+                    <a href="#" class="sos-action-btn sms-sos-btn" id="sos-sms-direct-btn" onclick="openDirectSosSms()">
+                        <i class="fa-solid fa-comment-sms"></i>
+                        <div>
+                            <strong>Send Distress SMS to Family</strong>
+                            <small>Pre-drafted with vehicle plate, driver & GPS link</small>
+                        </div>
+                    </a>
+
+                    <button type="button" class="sos-action-btn wa-sos-btn" onclick="shareOnWhatsApp()">
+                        <i class="fa-brands fa-whatsapp"></i>
+                        <div>
+                            <strong>Broadcast via WhatsApp</strong>
+                            <small>Instant transit beacon to trusted contacts</small>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="sos-disclaimer">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span><strong>Helpline Notice:</strong> Yatra Rakshaka operates client-side to prepare emergency coordinates and dials. In severe immediate danger, connect directly with 112.</span>
+                </div>
+
+                <button type="button" class="cancel-btn" style="width:100%; margin-top:14px;" onclick="closeSosModal()">Close Emergency Hub</button>
             </div>
         </div>
     </div>

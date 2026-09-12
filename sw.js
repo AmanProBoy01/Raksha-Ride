@@ -1,9 +1,9 @@
 /* ==========================================================================
-   Yatra Rakshaka - Service Worker (Offline Cache & PWA Support)
+   Yatra Rakshaka - Service Worker (Network-First & Resilient Offline Cache)
    ========================================================================== */
 
-const CACHE_NAME = 'yatra-rakshaka-v1';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'yatra-rakshaka-v2';
+const STATIC_ASSETS = [
   './',
   './index.html',
   './style.css',
@@ -18,8 +18,15 @@ const ASSETS_TO_CACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // Resilient caching: Individual asset try/catch so missing optional asset doesn't break PWA
+      for (const asset of STATIC_ASSETS) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn(`PWA Cache item failed for ${asset}:`, err.message);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
@@ -30,6 +37,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Cleaning old cache:', key);
             return caches.delete(key);
           }
         })
@@ -39,25 +47,36 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Let external tile and API requests pass through with network fallback
-  if (event.request.url.includes('tile.openstreetmap.org') || 
-      event.request.url.includes('overpass-api.de') || 
-      event.request.url.includes('nominatim.openstreetmap.org')) {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  // Let real-time APIs bypass cache entirely
+  if (request.url.includes('tile.openstreetmap.org') || 
+      request.url.includes('overpass') || 
+      request.url.includes('nominatim.openstreetmap.org')) {
     return;
   }
 
+  // Network-First strategy for core HTML/JS/CSS to ensure users always receive latest updates
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        return networkResponse;
-      }).catch(() => {
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache);
+          });
         }
-      });
-    })
+        return networkResponse;
+      })
+      .catch(() => {
+        // Fallback to cache when offline
+        return caches.match(request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        });
+      })
   );
 });

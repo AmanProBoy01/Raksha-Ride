@@ -1,6 +1,6 @@
 /* ==========================================================================
    Yatra Rakshaka - Core Application Controller
-   Cleaned & Streamlined via Ponytail Audit
+   Audited, Hardened, XSS-Safe, and Truthful Emergency Protocol
    ========================================================================== */
 
 // --- Global Application State ---
@@ -11,20 +11,25 @@ let routePolyline = null;
 let tileLayer = null;
 let isDarkMap = true;
 
-// Default Coordinates (New Delhi center)
-let userCoords = { lat: 28.6139, lng: 77.2090 };
+// Honest Coordinates State (null until real permission granted or demo enabled)
+let userCoords = null;
 let driverCoords = { lat: 28.6210, lng: 77.2180 };
-let userAddress = "Connaught Place, New Delhi";
+let userAddress = "Detecting GPS location...";
+let isDemoMode = false;
 let cabSpeed = 36;
 let distanceKm = 1.8;
 
-// Active Cab Details (Editable via Cab Modal)
+// Demo Fallback Baseline (Clearly labeled as simulation)
+const DEMO_COORDS = { lat: 28.6139, lng: 77.2090 };
+const DEMO_ADDRESS = "Connaught Place, New Delhi (Simulated Demo)";
+
+// Active Cab Details (Separated Type and Model)
 let activeCab = {
     name: "Rajesh Kumar",
     phone: "+91 98765 43210",
+    type: "Sedan",
     model: "White Maruti Suzuki Dzire",
     plate: "DL 01 AB 7890",
-    type: "Sedan",
     rating: "4.9",
     otp: "4892",
     tripId: "#YR-9082",
@@ -47,12 +52,17 @@ let ringAudioTimer = null;
 let sosCountdown = 5;
 let sosInterval = null;
 
-// Ultra Power Saver State
+// Battery Diagnostics State
 let isUltraSaverActive = false;
-let userManualOverride = false;
+let batterySimulationEnabled = false;
+let realBatteryManager = null;
 
 // Chat State
 let unreadMessages = 0;
+
+// Geocoding Throttling
+let lastGeocodeTime = 0;
+let lastGeocodedCoords = null;
 
 /* ==========================================================================
    1. Audio Synthesizer Engine (Lightweight HTML5 Web Audio API)
@@ -99,7 +109,7 @@ const playSiren = () => {
 const playPowerDown = () => beep(220, 0.5, 'triangle', 0.2);
 
 /* ==========================================================================
-   2. Geodesic Distance Helper (Native Leaflet with simple fallback)
+   2. Geodesic Distance Helper & Sanitizers
    ========================================================================== */
 function getDistanceKm(lat1, lon1, lat2, lon2) {
     if (typeof L !== 'undefined' && L.latLng) {
@@ -108,6 +118,11 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
     const dLat = (lat2 - lat1) * 111.32;
     const dLon = (lon2 - lon1) * 111.32 * Math.cos(lat1 * Math.PI / 180);
     return Math.hypot(dLat, dLon);
+}
+
+function normalizePhone(value) {
+    const cleaned = String(value || "").replace(/[^\d+]/g, "");
+    return /^\+?\d{7,16}$/.test(cleaned) ? cleaned : "112";
 }
 
 /* ==========================================================================
@@ -120,12 +135,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try { initPhoneDetails(); } catch (err) { console.error("Phone details init error:", err); }
     try { setupBatterySlider(); } catch (err) { console.error("Slider setup error:", err); }
 
-    // Instant render: Show verified emergency police hubs immediately without awaiting network
-    loadFallbackPoliceStations(userCoords.lat, userCoords.lng);
-
-    // Background asynchronous enrichment
-    fetchLiveAddress(userCoords.lat, userCoords.lng);
-    fetchNearbyPoliceStations(userCoords.lat, userCoords.lng);
+    // Start with verified 24x7 Emergency Hubs
+    loadFallbackPoliceStations(DEMO_COORDS.lat, DEMO_COORDS.lng);
 
     // AudioContext unlock on first user interaction
     document.addEventListener("click", () => {
@@ -142,7 +153,6 @@ document.addEventListener("DOMContentLoaded", () => {
    ========================================================================== */
 function initMap() {
     if (typeof L === 'undefined') {
-        console.warn("Leaflet library loading asynchronously...");
         setTimeout(initMap, 200);
         return;
     }
@@ -150,10 +160,12 @@ function initMap() {
     const mapElem = document.getElementById('leaflet-map');
     if (!mapElem || map) return;
 
+    const initialCenter = userCoords || DEMO_COORDS;
+
     map = L.map('leaflet-map', {
         zoomControl: true,
         attributionControl: true
-    }).setView([userCoords.lat, userCoords.lng], 14);
+    }).setView([initialCenter.lat, initialCenter.lng], 14);
 
     // Free OpenStreetMap Tiles
     tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -162,15 +174,15 @@ function initMap() {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
     }).addTo(map);
 
-    // User Location Marker (Cyan Pulsing Radar)
+    // User Location Marker (Cyan Pulsing Dot)
     const userIcon = L.divIcon({
         className: 'user-map-pin',
         html: `<div style="background:#38bdf8; width:20px; height:20px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 16px #38bdf8; animation:pulse 1.8s infinite;"></div>`,
         iconSize: [22, 22],
         iconAnchor: [11, 11]
     });
-    userMarker = L.marker([userCoords.lat, userCoords.lng], { icon: userIcon }).addTo(map)
-        .bindPopup("<b>📍 Your Live Location</b><br><span id='popup-address'>Yatra Rakshaka Sentinel Active</span>");
+    userMarker = L.marker([initialCenter.lat, initialCenter.lng], { icon: userIcon }).addTo(map)
+        .bindPopup("<b>📍 Live Location Status</b><br><span id='popup-address'>Awaiting GPS satellite fix...</span>");
 
     // Cab Driver Marker (Emerald Green Vehicle Pin)
     const cabIcon = L.divIcon({
@@ -180,12 +192,12 @@ function initMap() {
         iconAnchor: [16, 16]
     });
     driverMarker = L.marker([driverCoords.lat, driverCoords.lng], { icon: cabIcon }).addTo(map)
-        .bindPopup(`<b>🚖 ${activeCab.name} (${activeCab.model})</b><br>Plate: ${activeCab.plate}<br>Status: En route to pickup`);
+        .bindPopup(`<b>🚖 ${activeCab.name} (${activeCab.type})</b><br>Plate: ${activeCab.plate}<br>Status: En route (Simulated telemetry)`);
 
     // Route Polyline
     routePolyline = L.polyline([
         [driverCoords.lat, driverCoords.lng],
-        [userCoords.lat, userCoords.lng]
+        [initialCenter.lat, initialCenter.lng]
     ], {
         color: '#38bdf8',
         weight: 4,
@@ -216,10 +228,14 @@ function toggleMapTheme() {
 }
 
 function recenterMap() {
-    if (map) {
-        map.flyTo([userCoords.lat, userCoords.lng], 15, { animate: true, duration: 1.2 });
+    if (!map) return;
+    const target = userCoords || (isDemoMode ? DEMO_COORDS : null);
+    if (target) {
+        map.flyTo([target.lat, target.lng], 15, { animate: true, duration: 1.2 });
         if (userMarker) userMarker.openPopup();
-        showToast("📍 Centered on your live GPS position");
+        showToast("📍 Centered on GPS position");
+    } else {
+        showToast("⚠️ Live GPS position not yet acquired.");
     }
 }
 
@@ -228,36 +244,96 @@ function initLocationTracking() {
     const statusElem = document.getElementById("gps-status-text");
 
     if ("geolocation" in navigator) {
+        if (statusElem) statusElem.textContent = "GPS: Acquiring...";
+        if (coordsElem) coordsElem.textContent = "Acquiring GPS fix...";
+
         navigator.geolocation.watchPosition(
             (pos) => {
-                const oldLat = userCoords.lat;
-                const oldLng = userCoords.lng;
-                userCoords.lat = pos.coords.latitude;
-                userCoords.lng = pos.coords.longitude;
-                const acc = Math.round(pos.coords.accuracy || 6);
+                isDemoMode = false;
+                updateDemoModeBadge(false);
 
-                if (userMarker) userMarker.setLatLng([userCoords.lat, userCoords.lng]);
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                const acc = Math.round(pos.coords.accuracy || 8);
+
+                userCoords = { lat, lng };
+
+                if (userMarker) userMarker.setLatLng([lat, lng]);
                 if (routePolyline && driverMarker) {
-                    routePolyline.setLatLngs([driverMarker.getLatLng(), [userCoords.lat, userCoords.lng]]);
+                    routePolyline.setLatLngs([driverMarker.getLatLng(), [lat, lng]]);
                 }
 
-                if (coordsElem) coordsElem.textContent = `Lat: ${userCoords.lat.toFixed(4)}°, Lng: ${userCoords.lng.toFixed(4)}° (±${acc}m)`;
-                if (statusElem) statusElem.textContent = "GPS: Live Active";
+                if (coordsElem) coordsElem.textContent = `Lat: ${lat.toFixed(4)}°, Lng: ${lng.toFixed(4)}° (±${acc}m)`;
+                if (statusElem) statusElem.textContent = `GPS: Live (±${acc}m)`;
 
-                // Re-scan reverse address and police stations if user moved > 500m
-                const distMoved = getDistanceKm(oldLat, oldLng, userCoords.lat, userCoords.lng);
-                if (distMoved > 0.5) {
-                    fetchLiveAddress(userCoords.lat, userCoords.lng);
-                    fetchNearbyPoliceStations(userCoords.lat, userCoords.lng);
+                // Reverse geocode with throttling
+                fetchLiveAddress(lat, lng);
+
+                // Refresh police stations if moved significantly
+                if (!lastGeocodedCoords || getDistanceKm(lastGeocodedCoords.lat, lastGeocodedCoords.lng, lat, lng) > 0.6) {
+                    fetchNearbyPoliceStations(lat, lng);
                 }
             },
             (err) => {
-                console.warn("Geolocation fallback active:", err.message);
-                if (coordsElem) coordsElem.textContent = `Lat: ${userCoords.lat.toFixed(4)}° N, Lng: ${userCoords.lng.toFixed(4)}° E`;
-                if (statusElem) statusElem.textContent = "GPS: Simulated Active";
+                console.warn("Geolocation watch warning:", err.message);
+                if (!isDemoMode) {
+                    userCoords = null;
+                    userAddress = "Live GPS unavailable";
+                    if (coordsElem) coordsElem.textContent = "GPS Unavailable";
+                    if (statusElem) {
+                        statusElem.textContent = err.code === 1 ? "GPS: Permission Denied" : "GPS: Unavailable";
+                    }
+                    const addressEl = document.getElementById("live-address-text");
+                    if (addressEl) addressEl.textContent = "Location permission needed (or tap 🧪 Demo)";
+                }
             },
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 1000 }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
         );
+    } else {
+        if (statusElem) statusElem.textContent = "GPS: Unsupported";
+        if (coordsElem) coordsElem.textContent = "Browser GPS unsupported";
+    }
+}
+
+function toggleDemoMode() {
+    isDemoMode = !isDemoMode;
+    updateDemoModeBadge(isDemoMode);
+
+    const coordsElem = document.getElementById("live-coords");
+    const statusElem = document.getElementById("gps-status-text");
+    const addressElem = document.getElementById("live-address-text");
+    const demoBtn = document.getElementById("demo-toggle-btn");
+
+    if (isDemoMode) {
+        userCoords = { ...DEMO_COORDS };
+        userAddress = DEMO_ADDRESS;
+
+        if (coordsElem) coordsElem.textContent = `Lat: ${userCoords.lat.toFixed(4)}°, Lng: ${userCoords.lng.toFixed(4)}° [DEMO]`;
+        if (statusElem) statusElem.textContent = "GPS: Demo Mode";
+        if (addressElem) addressElem.textContent = userAddress;
+        if (demoBtn) demoBtn.classList.add("active");
+
+        if (userMarker) {
+            userMarker.setLatLng([userCoords.lat, userCoords.lng]);
+            const popup = document.getElementById("popup-address");
+            if (popup) popup.textContent = userAddress;
+        }
+        if (map) map.setView([userCoords.lat, userCoords.lng], 14);
+
+        loadFallbackPoliceStations(userCoords.lat, userCoords.lng);
+        showToast("🧪 Demo Simulation Mode Enabled");
+    } else {
+        if (demoBtn) demoBtn.classList.remove("active");
+        showToast("📍 Exiting Demo Mode; querying real GPS...");
+        initLocationTracking();
+    }
+}
+
+function updateDemoModeBadge(enable) {
+    const badge = document.getElementById("demo-mode-badge");
+    if (badge) {
+        if (enable) badge.classList.remove("hidden");
+        else badge.classList.add("hidden");
     }
 }
 
@@ -267,25 +343,27 @@ function startCabMovementSimulation() {
         if (activeCab.status !== 'enroute') return;
         t += 0.04;
 
-        const dLat = userCoords.lat - driverCoords.lat;
-        const dLng = userCoords.lng - driverCoords.lng;
+        const target = userCoords || DEMO_COORDS;
+        const dLat = target.lat - driverCoords.lat;
+        const dLng = target.lng - driverCoords.lng;
 
+        // Simulated telemetry step
         driverCoords.lat += (dLat * 0.02) + (Math.sin(t) * 0.0001);
         driverCoords.lng += (dLng * 0.02) + (Math.cos(t) * 0.0001);
 
         if (driverMarker) driverMarker.setLatLng([driverCoords.lat, driverCoords.lng]);
-        if (routePolyline) {
+        if (routePolyline && userCoords) {
             routePolyline.setLatLngs([[driverCoords.lat, driverCoords.lng], [userCoords.lat, userCoords.lng]]);
         }
 
-        const dist = getDistanceKm(driverCoords.lat, driverCoords.lng, userCoords.lat, userCoords.lng);
+        const dist = getDistanceKm(driverCoords.lat, driverCoords.lng, target.lat, target.lng);
         distanceKm = Math.max(0.1, parseFloat(dist.toFixed(1)));
         cabSpeed = Math.floor(32 + Math.sin(t * 2) * 8);
 
         const speedElem = document.getElementById("live-speed");
         const etaElem = document.getElementById("live-eta");
 
-        if (speedElem) speedElem.textContent = `Cab Speed: ${cabSpeed} km/h`;
+        if (speedElem) speedElem.textContent = `Cab Speed: ${cabSpeed} km/h (Simulated)`;
         if (etaElem) {
             const mins = Math.max(1, Math.round(distanceKm * 2.5));
             etaElem.textContent = `ETA: ${mins} Mins (${distanceKm} km)`;
@@ -294,34 +372,56 @@ function startCabMovementSimulation() {
 }
 
 /* ==========================================================================
-   5. Real Nominatim Reverse Geocoding (Fetch Exact Street & City)
+   5. Throttled & Resilient Reverse Geocoding (Nominatim)
    ========================================================================== */
 async function fetchLiveAddress(lat, lng) {
+    const now = Date.now();
+    // Enforce 5-second throttling
+    if (now - lastGeocodeTime < 5000) return;
+    lastGeocodeTime = now;
+    lastGeocodedCoords = { lat, lng };
+
     const addressElem = document.getElementById("live-address-text");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     try {
         const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=16`;
-        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-        if (!res.ok) throw new Error("Nominatim response not ok");
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'Accept-Language': 'en' }
+        });
+        if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
         const data = await res.json();
 
         if (data && data.address) {
             const road = data.address.road || data.address.suburb || data.address.neighbourhood || "";
             const city = data.address.city || data.address.town || data.address.state_district || data.address.state || "";
-            userAddress = road ? `${road}, ${city}` : (data.display_name ? data.display_name.split(",").slice(0, 3).join(",") : "New Delhi, India");
+            userAddress = road ? `${road}, ${city}` : (data.display_name ? data.display_name.split(",").slice(0, 3).join(",") : "Current GPS Sector");
 
             if (addressElem) addressElem.textContent = userAddress;
             const popup = document.getElementById("popup-address");
             if (popup) popup.textContent = userAddress;
         }
     } catch (err) {
-        console.warn("Reverse geocoding fallback used:", err);
-        if (addressElem) addressElem.textContent = "Live GPS Sector Tracked";
+        console.warn("Reverse geocoding fallback active:", err.message);
+        if (!userAddress || userAddress.includes("Detecting")) {
+            userAddress = `Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
+            if (addressElem) addressElem.textContent = userAddress;
+        }
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
 /* ==========================================================================
-   6. Police Station Hubs & Non-Blocking Overpass Enrichment
+   6. Multi-Endpoint Resilient Overpass Police Scanner
    ========================================================================== */
+const OVERPASS_ENDPOINTS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
+];
+
 function loadFallbackPoliceStations(lat, lng) {
     const statusElem = document.getElementById("police-scan-status");
     nearbyPoliceStations = [
@@ -335,76 +435,78 @@ function loadFallbackPoliceStations(lat, lng) {
     plotPoliceStationsOnMap();
 
     if (statusElem) {
-        statusElem.innerHTML = `🟢 Verified 24x7 Emergency Hubs Active`;
+        statusElem.textContent = "🟢 Verified 24x7 Emergency Hubs Active";
     }
 }
 
 async function fetchNearbyPoliceStations(lat, lng) {
     const statusElem = document.getElementById("police-scan-status");
+    const overpassQuery = `[out:json][timeout:6];(node["amenity"="police"](around:8000,${lat},${lng});way["amenity"="police"](around:8000,${lat},${lng}););out center 6;`;
 
-    try {
-        const overpassQuery = `[out:json][timeout:6];(node["amenity"="police"](around:8000,${lat},${lng});way["amenity"="police"](around:8000,${lat},${lng}););out center 6;`;
-        const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
-
+    for (const endpoint of OVERPASS_ENDPOINTS) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
 
-        if (!response.ok) throw new Error("Overpass API request failed");
-        const data = await response.json();
+        try {
+            const url = `${endpoint}?data=${encodeURIComponent(overpassQuery)}`;
+            const response = await fetch(url, { signal: controller.signal });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
 
-        if (data && data.elements && data.elements.length > 0) {
-            const liveStations = data.elements.map(el => {
-                const pLat = el.lat || (el.center ? el.center.lat : lat);
-                const pLng = el.lon || (el.center ? el.center.lon : lng);
-                const name = el.tags.name || el.tags["name:en"] || "Local Police Station";
-                const phone = el.tags.phone || el.tags["contact:phone"] || "112";
-                const address = el.tags["addr:street"] ? `${el.tags["addr:street"]}, ${el.tags["addr:city"] || ""}` : "Jurisdiction Division";
-                const distKm = getDistanceKm(lat, lng, pLat, pLng).toFixed(1);
+            if (data && Array.isArray(data.elements) && data.elements.length > 0) {
+                const liveStations = data.elements.map(el => {
+                    const pLat = Number(el.lat || (el.center ? el.center.lat : lat));
+                    const pLng = Number(el.lon || (el.center ? el.center.lon : lng));
+                    const tags = el.tags || {};
+                    const name = tags.name || tags["name:en"] || "Local Police Station";
+                    const phone = normalizePhone(tags.phone || tags["contact:phone"] || "112");
+                    const address = tags["addr:street"] ? `${tags["addr:street"]}, ${tags["addr:city"] || ""}` : "Local Jurisdiction Division";
+                    const distKm = getDistanceKm(lat, lng, pLat, pLng).toFixed(1);
 
-                return {
-                    name: name,
-                    distance: `${distKm} km`,
-                    distNum: parseFloat(distKm),
-                    phone: phone,
-                    address: address,
-                    lat: pLat,
-                    lng: pLng
-                };
-            }).sort((a, b) => a.distNum - b.distNum);
+                    return {
+                        name,
+                        distance: `${distKm} km`,
+                        distNum: parseFloat(distKm),
+                        phone,
+                        address,
+                        lat: pLat,
+                        lng: pLng
+                    };
+                }).sort((a, b) => a.distNum - b.distNum);
 
-            // Keep emergency 112 at top
-            liveStations.unshift({
-                name: "National Emergency Command (PCR)",
-                distance: "Direct Line",
-                distNum: 0,
-                phone: "112",
-                address: "24x7 Nationwide Central Dispatch",
-                lat: lat + 0.003,
-                lng: lng + 0.003
-            });
+                // Add 112 National Command to top
+                liveStations.unshift({
+                    name: "National Emergency Command (PCR)",
+                    distance: "Direct Line",
+                    distNum: 0,
+                    phone: "112",
+                    address: "24x7 Nationwide Central Dispatch",
+                    lat: lat + 0.003,
+                    lng: lng + 0.003
+                });
 
-            nearbyPoliceStations = liveStations;
-            renderPoliceStations();
-            plotPoliceStationsOnMap();
+                nearbyPoliceStations = liveStations;
+                renderPoliceStations();
+                plotPoliceStationsOnMap();
 
-            if (statusElem) {
-                statusElem.innerHTML = `🟢 ${nearbyPoliceStations.length} police response hubs mapped`;
+                if (statusElem) {
+                    statusElem.textContent = `🟢 ${nearbyPoliceStations.length} police response hubs mapped`;
+                }
+                return; // Successfully updated from endpoint
             }
-        }
-    } catch (e) {
-        console.warn("Overpass API unavailable or timed out; standard emergency hubs active:", e.message);
-        if (statusElem) {
-            statusElem.innerHTML = `🟢 24x7 Emergency Hubs Linked`;
+        } catch (e) {
+            console.warn(`Endpoint ${endpoint} failed:`, e.message);
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
+
+    if (statusElem) statusElem.textContent = "🟢 24x7 Emergency Hubs Active";
 }
 
 function plotPoliceStationsOnMap() {
     if (!map) return;
 
-    // Clear previous police markers
     policeMapMarkers.forEach(m => map.removeLayer(m));
     policeMapMarkers = [];
 
@@ -418,39 +520,70 @@ function plotPoliceStationsOnMap() {
             iconAnchor: [13, 13]
         });
 
+        const safePhone = normalizePhone(station.phone);
         const pMarker = L.marker([station.lat, station.lng], { icon: policeIcon }).addTo(map)
-            .bindPopup(`<b>🚓 ${station.name}</b><br>Distance: ${station.distance}<br>Emergency Dial: <a href="tel:${station.phone}">${station.phone}</a>`);
+            .bindPopup(`<b>🚓 ${escapeHtml(station.name)}</b><br>Distance: ${escapeHtml(station.distance)}<br>Emergency Dial: <a href="tel:${safePhone}">${safePhone}</a>`);
 
         policeMapMarkers.push(pMarker);
     });
 }
 
+// XSS-Safe DOM construction for Police Station List
 function renderPoliceStations() {
     const listContainer = document.getElementById("police-station-list");
     if (!listContainer) return;
 
-    listContainer.innerHTML = nearbyPoliceStations.map(station => `
-        <div class="police-item">
-            <div class="police-info">
-                <h4>${station.name}</h4>
-                <p><i class="fa-solid fa-location-dot" style="color:#ef4444;"></i> ${station.distance} • ${station.address}</p>
-            </div>
-            <div class="police-actions">
-                <button class="police-btn police-call" onclick="openCallModal('${station.name.replace(/'/g, "\\'")}', '${station.phone}', 'Emergency Dispatch')" title="Call ${station.name}">
-                    <i class="fa-solid fa-phone"></i>
-                </button>
-                <button class="police-btn police-nav" onclick="navigatePolice('${station.name.replace(/'/g, "\\'")}')" title="Directions in Google Maps">
-                    <i class="fa-solid fa-diamond-turn-right"></i>
-                </button>
-            </div>
-        </div>
-    `).join("");
+    listContainer.innerHTML = ""; // Clear safely
+
+    nearbyPoliceStations.forEach(station => {
+        const itemDiv = document.createElement("div");
+        itemDiv.className = "police-item";
+
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "police-info";
+
+        const h4 = document.createElement("h4");
+        h4.textContent = station.name;
+
+        const p = document.createElement("p");
+        p.textContent = `📍 ${station.distance} • ${station.address}`;
+
+        infoDiv.appendChild(h4);
+        infoDiv.appendChild(p);
+
+        const actionsDiv = document.createElement("div");
+        actionsDiv.className = "police-actions";
+
+        const callBtn = document.createElement("button");
+        callBtn.className = "police-btn police-call";
+        callBtn.title = `Call ${station.name}`;
+        callBtn.innerHTML = `<i class="fa-solid fa-phone"></i>`;
+        callBtn.addEventListener("click", () => {
+            openCallModal(station.name, station.phone, 'Emergency Dispatch');
+        });
+
+        const navBtn = document.createElement("button");
+        navBtn.className = "police-btn police-nav";
+        navBtn.title = `Directions in Google Maps`;
+        navBtn.innerHTML = `<i class="fa-solid fa-diamond-turn-right"></i>`;
+        navBtn.addEventListener("click", () => {
+            navigatePolice(station.name);
+        });
+
+        actionsDiv.appendChild(callBtn);
+        actionsDiv.appendChild(navBtn);
+
+        itemDiv.appendChild(infoDiv);
+        itemDiv.appendChild(actionsDiv);
+        listContainer.appendChild(itemDiv);
+    });
 }
 
 function refreshPoliceStations() {
     playChime(true);
-    showToast("🔄 Re-scanning nearby police stations via GPS...");
-    fetchNearbyPoliceStations(userCoords.lat, userCoords.lng);
+    showToast("🔄 Re-scanning nearby emergency stations...");
+    const target = userCoords || DEMO_COORDS;
+    fetchNearbyPoliceStations(target.lat, target.lng);
 }
 
 function navigatePolice(name) {
@@ -458,8 +591,14 @@ function navigatePolice(name) {
     window.open(`https://www.google.com/maps/search/${query}`, '_blank');
 }
 
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
 /* ==========================================================================
-   7. Custom Cab Management & Safety Beacon
+   7. Custom Cab Management & Safety Beacon (Separated Type & Model)
    ========================================================================== */
 function openCabModal() {
     const modal = document.getElementById("cab-modal");
@@ -469,12 +608,14 @@ function openCabModal() {
     const nameInput = document.getElementById("input-driver-name");
     const phoneInput = document.getElementById("input-driver-phone");
     const typeSelect = document.getElementById("input-cab-type");
+    const modelInput = document.getElementById("input-cab-model");
     const statusSelect = document.getElementById("input-ride-status");
 
     if (plateInput) plateInput.value = activeCab.plate;
     if (nameInput) nameInput.value = activeCab.name;
     if (phoneInput) phoneInput.value = activeCab.phone;
-    if (typeSelect) typeSelect.value = activeCab.model;
+    if (typeSelect) typeSelect.value = activeCab.type;
+    if (modelInput) modelInput.value = activeCab.model;
     if (statusSelect) statusSelect.value = activeCab.status;
 }
 
@@ -488,22 +629,31 @@ function handleCabSubmit(e) {
 
     const plate = document.getElementById("input-plate").value.trim().toUpperCase();
     const name = document.getElementById("input-driver-name").value.trim();
-    const phone = document.getElementById("input-driver-phone").value.trim() || "+91 98765 43210";
-    const model = document.getElementById("input-cab-type").value;
+    const phoneRaw = document.getElementById("input-driver-phone").value.trim();
+    const type = document.getElementById("input-cab-type").value;
+    const model = document.getElementById("input-cab-model").value.trim();
     const status = document.getElementById("input-ride-status").value;
 
-    if (!plate || !name) {
-        showToast("⚠️ Please enter driver name and plate number!");
+    // Strict phone validation
+    const phoneRegex = /^\+?[0-9 ()-]{8,20}$/;
+    if (!phoneRegex.test(phoneRaw)) {
+        showToast("⚠️ Please enter a valid driver phone number!");
+        return;
+    }
+
+    if (!plate || !name || !model) {
+        showToast("⚠️ Please fill in all required fields!");
         return;
     }
 
     activeCab.plate = plate;
     activeCab.name = name;
-    activeCab.phone = phone;
+    activeCab.phone = phoneRaw;
+    activeCab.type = type;
     activeCab.model = model;
     activeCab.status = status;
 
-    // Update Driver Card in DOM
+    // Safe textContent updates (XSS-Safe)
     const nameEl = document.getElementById("driver-name");
     const plateEl = document.getElementById("car-plate");
     const modelEl = document.getElementById("cab-model");
@@ -511,7 +661,7 @@ function handleCabSubmit(e) {
 
     if (nameEl) nameEl.textContent = activeCab.name;
     if (plateEl) plateEl.textContent = activeCab.plate;
-    if (modelEl) modelEl.innerHTML = `<i class="fa-solid fa-car"></i> ${activeCab.model}`;
+    if (modelEl) modelEl.textContent = `🚗 ${activeCab.type} • ${activeCab.model}`;
     if (phoneEl) phoneEl.textContent = activeCab.phone;
 
     // Update Chat References
@@ -523,37 +673,40 @@ function handleCabSubmit(e) {
     // Update Ride Status Badge
     const badge = document.getElementById("ride-status-badge");
     if (badge) {
+        badge.className = "badge ride-status-badge";
         if (status === 'waiting') {
-            badge.className = "badge ride-status-badge waiting";
-            badge.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> Waiting for Cab`;
+            badge.classList.add("waiting");
+            badge.textContent = "⏳ Waiting for Cab";
         } else if (status === 'completed') {
-            badge.className = "badge ride-status-badge completed";
-            badge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Safely Completed`;
+            badge.classList.add("completed");
+            badge.textContent = "✅ Safely Completed";
         } else {
-            badge.className = "badge ride-status-badge";
-            badge.innerHTML = `<i class="fa-solid fa-circle-dot"></i> En Route`;
+            badge.textContent = "🟢 En Route";
         }
     }
 
     // Update map marker popup
     if (driverMarker) {
-        driverMarker.bindPopup(`<b>🚖 ${activeCab.name} (${activeCab.model})</b><br>Plate: ${activeCab.plate}<br>Status: ${status}`);
+        driverMarker.bindPopup(`<b>🚖 ${escapeHtml(activeCab.name)} (${escapeHtml(activeCab.type)})</b><br>Model: ${escapeHtml(activeCab.model)}<br>Plate: ${escapeHtml(activeCab.plate)}<br>Status: ${escapeHtml(status)}`);
     }
 
     closeCabModal();
     playChime(false);
-    showToast(`🚕 Safe Ride Activated for ${activeCab.plate}!`);
+    showToast(`🚕 Safe Ride Updated for ${activeCab.plate}!`);
 }
 
 function generateSafetyBeaconPayload() {
-    const mapsLink = `https://www.google.com/maps?q=${userCoords.lat.toFixed(5)},${userCoords.lng.toFixed(5)}`;
-    return `🚨 Yatra Rakshaka Live Safety Beacon:\n\n` +
-           `👤 Passenger travelling with: ${activeCab.name}\n` +
-           `🚗 Vehicle: ${activeCab.model} (${activeCab.plate})\n` +
+    const isMock = isDemoMode || !userCoords;
+    const coordsStr = userCoords ? `${userCoords.lat.toFixed(5)},${userCoords.lng.toFixed(5)}` : "Unavailable";
+    const mapsLink = userCoords ? `https://www.google.com/maps?q=${coordsStr}` : "Live GPS link unavailable (Permission required)";
+
+    return `🚨 Yatra Rakshaka Passenger Safety Beacon ${isMock ? "[DEMO SIMULATION]" : ""}:\n\n` +
+           `👤 Passenger in transit with: ${activeCab.name}\n` +
+           `🚗 Vehicle: ${activeCab.type} - ${activeCab.model} (${activeCab.plate})\n` +
            `📞 Driver Contact: ${activeCab.phone}\n` +
            `🔐 Ride OTP: ${activeCab.otp} | Trip ID: ${activeCab.tripId}\n` +
-           `📍 Current Location: ${userAddress}\n` +
-           `🗺️ Live GPS Tracking: ${mapsLink}\n\n` +
+           `📍 Location: ${userAddress}\n` +
+           `🗺️ GPS Link: ${mapsLink}\n\n` +
            `Transmitted via Yatra Rakshaka Sentinel.`;
 }
 
@@ -612,6 +765,7 @@ function fallbackCopy(text) {
 function initBatteryDiagnostics() {
     if ('getBattery' in navigator) {
         navigator.getBattery().then(battery => {
+            realBatteryManager = battery;
             handleBatteryEvent(battery);
             battery.addEventListener('levelchange', () => handleBatteryEvent(battery));
             battery.addEventListener('chargingchange', () => handleBatteryEvent(battery));
@@ -624,7 +778,7 @@ function initBatteryDiagnostics() {
 }
 
 function handleBatteryEvent(battery) {
-    if (userManualOverride) return;
+    if (batterySimulationEnabled) return;
     const level = Math.round(battery.level * 100);
     updateBatteryDisplay(level, battery.charging);
 }
@@ -634,10 +788,21 @@ function setupBatterySlider() {
     if (!slider) return;
 
     slider.addEventListener("input", (e) => {
-        userManualOverride = true;
+        batterySimulationEnabled = true;
         const val = parseInt(e.target.value);
         updateBatteryDisplay(val, false);
     });
+}
+
+function useRealBattery() {
+    batterySimulationEnabled = false;
+    if (realBatteryManager) {
+        handleBatteryEvent(realBatteryManager);
+        showToast("🔋 Restored live device battery monitoring");
+    } else {
+        showToast("⚡ Device Battery API not available in browser; reset to 85%");
+        updateBatteryDisplay(85, false);
+    }
 }
 
 function updateBatteryDisplay(percent, isCharging) {
@@ -678,7 +843,7 @@ function updateBatteryDisplay(percent, isCharging) {
             showToast("⚠️ Battery ≤ 5%: Auto Ultra Power Saver Active!");
         }
     } else {
-        if (isUltraSaverActive && !userManualOverride) {
+        if (isUltraSaverActive && !batterySimulationEnabled) {
             toggleUltraSaver(false);
         }
     }
@@ -712,7 +877,7 @@ function toggleUltraSaver(enable) {
 }
 
 function manualToggleSaver() {
-    userManualOverride = true;
+    batterySimulationEnabled = true;
     toggleUltraSaver(!isUltraSaverActive);
     if (isUltraSaverActive) {
         playPowerDown();
@@ -727,9 +892,9 @@ function manualToggleSaver() {
    ========================================================================== */
 function initPhoneDetails() {
     const ua = navigator.userAgent;
-    let osInfo = "Android Mobile Device";
+    let osInfo = "Mobile Device";
 
-    if (/Android/i.test(ua)) osInfo = "Android Mobile (ARM64)";
+    if (/Android/i.test(ua)) osInfo = "Android (ARM64)";
     else if (/iPhone|iPad|iPod/i.test(ua)) osInfo = "Apple iOS Device";
     else if (/Linux/i.test(ua)) osInfo = "Linux Workstation / Mobile";
     else if (/Windows/i.test(ua)) osInfo = "Windows 11 (x86_64)";
@@ -757,14 +922,14 @@ function initPhoneDetails() {
             const rtt = conn ? (conn.rtt || 38) : 38;
             netElem.textContent = `Online (${type} • ${rtt}ms RTT)`;
         } else {
-            netElem.textContent = "Offline (Emergency SOS Mode)";
+            netElem.textContent = "Offline (Local PWA Mode)";
             netElem.style.color = "#ef4444";
         }
     }
 }
 
 /* ==========================================================================
-   10. In-App Messaging Chat Drawer
+   10. In-App Messaging Chat Drawer (XSS-Safe DOM Construction)
    ========================================================================== */
 function openChatDrawer() {
     const drawer = document.getElementById("chat-drawer");
@@ -801,9 +966,9 @@ function sendMessage() {
         if (typing) typing.classList.add("hidden");
         const responses = [
             `Namaste! I am driving ${activeCab.plate}, reaching in 3 minutes.`,
-            `Yes sir, I am following the GPS route. AC is turned on.`,
+            `Yes sir, following safety GPS route. AC is turned on.`,
             `Ride is verified, following the safest route.`,
-            `Vehicle speed is ${cabSpeed} km/h, reaching your pickup location.`
+            `Vehicle speed is ${cabSpeed} km/h, reaching pickup location.`
         ];
         const reply = responses[Math.floor(Math.random() * responses.length)];
         appendChatMessage(reply, "incoming");
@@ -832,13 +997,14 @@ function sendQuickMessage(msg) {
     setTimeout(() => {
         if (typing) typing.classList.add("hidden");
         const reply = msg.includes("Stop") || msg.includes("unsafe") ?
-            "⚠️ Pulling over immediately sir! Alert registered." :
+            "⚠️ Pulling over immediately sir! Transit alert registered." :
             `Ji sir, acknowledged! Route verified in ${activeCab.plate}.`;
         appendChatMessage(reply, "incoming");
         playChime(true);
     }, 1000);
 }
 
+// Strictly XSS-Safe DOM Insertion
 function appendChatMessage(text, type) {
     const container = document.getElementById("chat-messages");
     if (!container) return;
@@ -846,17 +1012,23 @@ function appendChatMessage(text, type) {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const msgDiv = document.createElement("div");
     msgDiv.className = `message ${type}`;
-    msgDiv.innerHTML = `
-        <div class="message-bubble">${text}</div>
-        <span class="message-time">${timeStr}</span>
-    `;
 
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+    bubble.textContent = text; // Prevents HTML injection
+
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "message-time";
+    timeSpan.textContent = timeStr;
+
+    msgDiv.appendChild(bubble);
+    msgDiv.appendChild(timeSpan);
     container.appendChild(msgDiv);
     container.scrollTop = container.scrollHeight;
 }
 
 /* ==========================================================================
-   11. Unified Voice Call Simulator (Driver & Police Emergency Desk)
+   11. Unified Voice Call Simulator
    ========================================================================== */
 function openCallModal(name = activeCab.name, phone = activeCab.phone, role = 'Cab Driver') {
     const modal = document.getElementById("call-modal");
@@ -928,17 +1100,17 @@ function toggleCallSpeaker() {
     showToast(isSpeaker ? "🔊 Speakerphone ON" : "🔈 Normal Earpiece");
 }
 
-// Alias for backwards compatibility
-function openPoliceCallModal(name, phone) {
-    openCallModal(name, phone, 'Emergency Dispatch');
-}
-
 /* ==========================================================================
-   12. Emergency SOS Siren & Central Dispatch Alert
+   12. Truthful Emergency SOS Protocol & Action Hub
    ========================================================================== */
 function openSosModal() {
     const modal = document.getElementById("sos-modal");
     if (modal) modal.classList.remove("hidden");
+
+    const stageCountdown = document.getElementById("sos-stage-countdown");
+    const stageActions = document.getElementById("sos-stage-actions");
+    if (stageCountdown) stageCountdown.classList.remove("hidden");
+    if (stageActions) stageActions.classList.add("hidden");
 
     sosCountdown = 5;
     const numElem = document.getElementById("sos-countdown-num");
@@ -960,25 +1132,41 @@ function openSosModal() {
 }
 
 function cancelSosModal() {
+    if (sosInterval) clearInterval(sosInterval);
     const modal = document.getElementById("sos-modal");
     if (modal) modal.classList.add("hidden");
+    showToast("✅ Emergency countdown cancelled");
+}
+
+function closeSosModal() {
     if (sosInterval) clearInterval(sosInterval);
-    showToast("✅ Emergency SOS Cancelled");
+    const modal = document.getElementById("sos-modal");
+    if (modal) modal.classList.add("hidden");
 }
 
 function triggerInstantSos() {
     if (sosInterval) clearInterval(sosInterval);
-    cancelSosModal();
 
-    beep(900, 0.5, 'sawtooth', 0.3);
+    // Switch from countdown to actionable emergency options
+    const stageCountdown = document.getElementById("sos-stage-countdown");
+    const stageActions = document.getElementById("sos-stage-actions");
+    if (stageCountdown) stageCountdown.classList.add("hidden");
+    if (stageActions) stageActions.classList.remove("hidden");
 
-    alert(`🚨 EMERGENCY SOS BROADCASTED!\n\n` +
-          `1. Live GPS Location (${userAddress} | Lat: ${userCoords.lat.toFixed(4)}, Lng: ${userCoords.lng.toFixed(4)}) transmitted to Central Police Control Room.\n` +
-          `2. Emergency SMS sent to pre-configured trusted family contacts.\n` +
-          `3. Vehicle ${activeCab.plate} (${activeCab.model}) flagged in PCR network.\n` +
-          `4. In-cab emergency audio telemetry initiated.`);
+    beep(900, 0.4, 'sawtooth', 0.25);
+    showToast("🚨 Emergency SOS Hub Ready! Choose immediate action.");
 
-    showToast("🚨 POLICE DISPATCH ALERT BROADCASTED!");
+    // Pre-draft direct distress SMS link
+    const payload = generateSafetyBeaconPayload();
+    const smsBtn = document.getElementById("sos-sms-direct-btn");
+    if (smsBtn) {
+        smsBtn.href = `sms:?body=${encodeURIComponent(payload)}`;
+    }
+}
+
+function openDirectSosSms() {
+    const payload = generateSafetyBeaconPayload();
+    window.location.href = `sms:?body=${encodeURIComponent(payload)}`;
 }
 
 /* ==========================================================================
@@ -990,14 +1178,14 @@ function showToast(message) {
 
     const toast = document.createElement("div");
     toast.className = "toast";
-    toast.innerHTML = `<span>${message}</span>`;
+    toast.textContent = message; // Safe text
     container.appendChild(toast);
 
     setTimeout(() => {
         if (toast && toast.parentNode) {
             toast.parentNode.removeChild(toast);
         }
-    }, 2800);
+    }, 3000);
 }
 
 /* ==========================================================================
